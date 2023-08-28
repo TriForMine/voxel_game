@@ -1,11 +1,10 @@
-use super::chunk::Chunk;
 use super::chunk::HEIGHT;
 use super::chunk::SIZE;
-use crate::voxel::chunk::ChunkData;
 use crate::voxel::direction::Direction;
 use crate::voxel::quad::Quad;
 use crate::voxel::voxel::Voxel;
-use crate::voxel::world::World;
+use crate::voxel::world::{ChunkDataMap, World};
+use crate::WORLD_SIZE;
 use anyhow::*;
 use bevy::math::IVec3;
 use bevy::prelude::*;
@@ -14,7 +13,7 @@ use bevy::render::mesh::Mesh;
 use bevy::render::render_resource::PrimitiveTopology;
 use std::time::Instant;
 
-pub fn create_chunk_mesh(chunk_data: &ChunkData, chunk_pos: &IVec3) -> Mesh {
+pub fn create_chunk_mesh(chunk_data_map: &ChunkDataMap, chunk_pos: &IVec3) -> Mesh {
     let start = Instant::now();
     let mut chunk_mesh = Mesh::new(PrimitiveTopology::TriangleList);
     let mut quads = Vec::<Quad>::new();
@@ -24,8 +23,8 @@ pub fn create_chunk_mesh(chunk_data: &ChunkData, chunk_pos: &IVec3) -> Mesh {
             for y in 0..(HEIGHT) {
                 let voxel_pos_local = IVec3::new(x, y, z);
 
-                if let anyhow::Result::Ok((voxel, front, back, left, right, top, down)) =
-                    adjacent_voxels(&chunk_data, &chunk_pos, &voxel_pos_local)
+                if let Result::Ok((voxel, front, back, left, right, top, down)) =
+                    adjacent_voxels(chunk_data_map, chunk_pos, &voxel_pos_local)
                 {
                     process_voxel(
                         voxel.as_ref(),
@@ -107,9 +106,10 @@ pub fn create_chunk_mesh(chunk_data: &ChunkData, chunk_pos: &IVec3) -> Mesh {
 
     let duration = start.elapsed();
 
-    println!(
+    trace!(
         "Chunk vertices and indices generated in: {:?} for: {:?}",
-        duration, chunk_pos
+        duration,
+        chunk_pos
     );
 
     chunk_mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, vertices);
@@ -132,37 +132,86 @@ fn process_voxel(
     quads: &mut Vec<Quad>,
 ) {
     if voxel.unwrap().is_solid() {
-        if let Some(left) = left && !left.is_solid() {
+        if left.is_none()
+            || match left {
+                Some(left) => !left.is_solid(),
+                None => true,
+            }
+        {
             quads.push(Quad::from_direction(Direction::Left, voxel_pos))
         }
-        if let Some(right) = right && !right.is_solid() {
+        if right.is_none()
+            || match right {
+                Some(right) => !right.is_solid(),
+                None => true,
+            }
+        {
             quads.push(Quad::from_direction(Direction::Right, voxel_pos))
         }
-        if let Some(top) = top && !top.is_solid() {
+        if top.is_none()
+            || match top {
+                Some(top) => !top.is_solid(),
+                None => true,
+            }
+        {
             quads.push(Quad::from_direction(Direction::Up, voxel_pos))
         }
-        if let Some(down) = down && !down.is_solid() {
+        if down.is_none()
+            || match down {
+                Some(right) => !right.is_solid(),
+                None => true,
+            }
+        {
             quads.push(Quad::from_direction(Direction::Down, voxel_pos))
         }
-        if let Some(front) = front && !front.is_solid() {
+        if front.is_none()
+            || match front {
+                Some(front) => !front.is_solid(),
+                None => true,
+            }
+        {
             quads.push(Quad::from_direction(Direction::Forward, voxel_pos))
         }
-        if let Some(back) = back && !back.is_solid() {
+        if back.is_none()
+            || match back {
+                Some(back) => !back.is_solid(),
+                None => true,
+            }
+        {
             quads.push(Quad::from_direction(Direction::Back, voxel_pos))
         }
     };
 }
 
-fn try_get_voxel(chunk_data: &ChunkData, chunk_pos: &IVec3, local_pos: &IVec3) -> Option<Voxel> {
-    if Chunk::is_outside_chunk(local_pos) {
-        None
+fn try_get_voxel(
+    chunk_data_map: &ChunkDataMap,
+    chunk_pos: &IVec3,
+    local_pos: &IVec3,
+) -> Option<Voxel> {
+    let mut chunk_pos = *chunk_pos;
+    let mut local_pos = *local_pos;
+    World::make_coords_valid(&mut chunk_pos, &mut local_pos);
+
+    if chunk_pos.x < -WORLD_SIZE
+        || chunk_pos.x > WORLD_SIZE
+        || chunk_pos.z < -WORLD_SIZE
+        || chunk_pos.z > WORLD_SIZE
+    {
+        println!("Chunk Pos: {:?} outside of the world", chunk_pos);
+        return Some(Voxel::new_empty());
+    }
+
+    let chunk = chunk_data_map.get(&chunk_pos);
+
+    if let Some(chunk) = chunk {
+        chunk.get_voxel(local_pos).copied()
     } else {
-        Some(chunk_data[Chunk::get_index(local_pos)])
+        None
     }
 }
 
 pub fn adjacent_voxels(
-    chunk_data: &ChunkData,
+    chunk_data_map: &ChunkDataMap,
     chunk_pos: &IVec3,
     local_pos: &IVec3,
 ) -> Result<(
@@ -174,26 +223,39 @@ pub fn adjacent_voxels(
     Option<Voxel>,
     Option<Voxel>,
 )> {
-    let voxel = try_get_voxel(&chunk_data, &chunk_pos, &local_pos);
+    let voxel = try_get_voxel(chunk_data_map, chunk_pos, local_pos);
 
-    let front = try_get_voxel(&chunk_data, &chunk_pos, &(*local_pos + IVec3::new(0, 0, 1)));
+    let front = try_get_voxel(
+        chunk_data_map,
+        chunk_pos,
+        &(*local_pos + IVec3::new(0, 0, 1)),
+    );
+
     let back = try_get_voxel(
-        &chunk_data,
-        &chunk_pos,
+        chunk_data_map,
+        chunk_pos,
         &(*local_pos + IVec3::new(0, 0, -1)),
     );
 
     let left = try_get_voxel(
-        &chunk_data,
-        &chunk_pos,
+        chunk_data_map,
+        chunk_pos,
         &(*local_pos + IVec3::new(-1, 0, 0)),
     );
-    let right = try_get_voxel(&chunk_data, &chunk_pos, &(*local_pos + IVec3::new(1, 0, 0)));
+    let right = try_get_voxel(
+        chunk_data_map,
+        chunk_pos,
+        &(*local_pos + IVec3::new(1, 0, 0)),
+    );
 
-    let top = try_get_voxel(&chunk_data, &chunk_pos, &(*local_pos + IVec3::new(0, 1, 0)));
+    let top = try_get_voxel(
+        chunk_data_map,
+        chunk_pos,
+        &(*local_pos + IVec3::new(0, 1, 0)),
+    );
     let down = try_get_voxel(
-        &chunk_data,
-        &chunk_pos,
+        chunk_data_map,
+        chunk_pos,
         &(*local_pos + IVec3::new(0, -1, 0)),
     );
 

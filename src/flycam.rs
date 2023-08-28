@@ -3,6 +3,9 @@ use bevy::input::mouse::MouseMotion;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, PrimaryWindow};
 
+#[derive(Component)]
+pub struct CameraTag;
+
 pub mod prelude {
     pub use crate::*;
 }
@@ -91,6 +94,7 @@ fn setup_player(mut commands: Commands) {
             ..Default::default()
         },
         FlyCam,
+        CameraTag,
     ));
 }
 

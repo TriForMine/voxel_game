@@ -4,6 +4,7 @@ mod flycam;
 mod terrain;
 mod voxel;
 
+use crate::flycam::CameraTag;
 use crate::flycam::PlayerPlugin;
 use crate::terrain::meshing::{
     clear_dirty_chunks, prepare_chunks, process_mesh_tasks, queue_mesh_tasks, ChunkMeshingSet,
@@ -13,10 +14,9 @@ use crate::voxel::chunk::ChunkEntity;
 use crate::voxel::world::World;
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
-use bevy_egui::{egui, EguiContexts};
-use bevy_inspector_egui::quick::WorldInspectorPlugin;
+use bevy_egui::{egui, EguiContexts, EguiPlugin};
 
-pub const WORLD_SIZE: i32 = 8;
+pub const WORLD_SIZE: i32 = 5;
 
 #[derive(Resource)]
 pub struct ResourcePack {
@@ -34,7 +34,7 @@ fn main() {
             DefaultPlugins,
             PlayerPlugin,
             FrameTimeDiagnosticsPlugin,
-            WorldInspectorPlugin::new(),
+            EguiPlugin,
         ))
         .configure_set(Update, TerrainGenSet)
         .configure_set(Update, ChunkMeshingSet.after(TerrainGenSet))
@@ -56,13 +56,38 @@ fn main() {
         .run();
 }
 
-fn debug_menu_system(mut contexts: EguiContexts, diagnostics: Res<DiagnosticsStore>) {
+fn debug_menu_system(
+    mut contexts: EguiContexts,
+    diagnostics: Res<DiagnosticsStore>,
+    camera_query: Query<&Transform, With<CameraTag>>,
+) {
     let fps = diagnostics
         .get(FrameTimeDiagnosticsPlugin::FPS)
         .and_then(|fps| fps.average());
 
-    egui::Window::new("Hello").show(contexts.ctx_mut(), |ui| {
+    let camera_pos = camera_query.single().translation.as_ivec3();
+    let mut chunk_pos = IVec3::new(0, 0, 0);
+    let mut local_pos = camera_pos;
+    World::make_coords_valid(&mut chunk_pos, &mut local_pos);
+
+    egui::Window::new("Debug").show(contexts.ctx_mut(), |ui| {
         ui.label(format!("FPS: {:?}", fps.unwrap_or_default().round()));
+
+        ui.separator();
+
+        ui.heading("Position");
+        ui.label(format!(
+            "World Position: X: {:?} Y: {:?} Z: {:?}",
+            camera_pos.x, camera_pos.y, camera_pos.z
+        ));
+        ui.label(format!(
+            "Chunk Position: X: {:?} Z: {:?}",
+            chunk_pos.x, chunk_pos.z
+        ));
+        ui.label(format!(
+            "Local Position: X: {:?} Y: {:?} Z: {:?}",
+            local_pos.x, local_pos.y, local_pos.z
+        ));
     });
 }
 

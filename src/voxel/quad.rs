@@ -1,10 +1,10 @@
-use bevy::math::Vec3;
 use crate::flycam::prelude::IVec3;
 use crate::voxel::direction::Direction;
+use bevy::math::Vec3;
 
 pub struct Quad {
     pub direction: Direction,
-    pub corners: [Vec3; 4]
+    pub corners: [Vec3; 4],
 }
 
 const HALF_SIZE: f32 = 0.5f32;
@@ -21,10 +21,10 @@ impl Quad {
                 Vec3::new(pos.x - HALF_SIZE, pos.y + HALF_SIZE, pos.z - HALF_SIZE),
             ],
             Direction::Right => [
-                Vec3::new(pos.x + HALF_SIZE, pos.y + HALF_SIZE, pos.z - HALF_SIZE),
-                Vec3::new(pos.x + HALF_SIZE, pos.y + HALF_SIZE, pos.z + HALF_SIZE),
                 Vec3::new(pos.x + HALF_SIZE, pos.y - HALF_SIZE, pos.z + HALF_SIZE),
                 Vec3::new(pos.x + HALF_SIZE, pos.y - HALF_SIZE, pos.z - HALF_SIZE),
+                Vec3::new(pos.x + HALF_SIZE, pos.y + HALF_SIZE, pos.z - HALF_SIZE),
+                Vec3::new(pos.x + HALF_SIZE, pos.y + HALF_SIZE, pos.z + HALF_SIZE),
             ],
             Direction::Down => [
                 Vec3::new(pos.x - HALF_SIZE, pos.y - HALF_SIZE, pos.z - HALF_SIZE),
@@ -52,10 +52,6 @@ impl Quad {
             ],
         };
 
-
-        Self {
-            corners,
-            direction,
-        }
+        Self { corners, direction }
     }
 }
