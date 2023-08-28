@@ -62,16 +62,13 @@ pub fn queue_mesh_tasks(mut commands: Commands, game_world: Res<GameWorld>) {
 
         if let Some(entity) = chunk_entity {
             let chunk_data_map = Arc::clone(&game_world.world.chunk_data_map);
-            let chunk_data_map = chunk_data_map.lock().unwrap();
-            let chunk_data = chunk_data_map.get(&chunk_coord);
 
-            if let Some(chunk_data) = chunk_data {
-                let voxels = chunk_data.voxels;
-
-                commands.entity(*entity).insert(ChunkMeshTask(
-                    pool.spawn(async move { create_chunk_mesh(&voxels, &chunk_coord) }),
-                ));
-            }
+            commands
+                .entity(*entity)
+                .insert(ChunkMeshTask(pool.spawn(async move {
+                    let chunk_data_map = chunk_data_map.lock().unwrap();
+                    create_chunk_mesh(&chunk_data_map, &chunk_coord)
+                })));
         }
     }
 }
