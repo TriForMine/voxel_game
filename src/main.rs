@@ -1,23 +1,23 @@
 #![feature(let_chains)]
 
-mod flycam;
+mod core;
 mod terrain;
 mod voxel;
 
-use crate::flycam::CameraTag;
-use crate::flycam::PlayerPlugin;
+use crate::core::player::{Player, PlayerPlugin};
 use crate::terrain::meshing::{
-    clear_dirty_chunks, prepare_chunks, process_mesh_tasks, queue_mesh_tasks, ChunkMeshingSet,
+    check_loading_world_ended, clear_dirty_chunks, prepare_chunks, process_mesh_tasks,
+    queue_mesh_tasks, ChunkMeshingSet,
 };
 use crate::terrain::terrain::{process_chunk_generation, queue_chunk_generation, TerrainGenSet};
 use crate::voxel::chunk::ChunkEntity;
 use crate::voxel::world::World;
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
-use bevy::ecs::bundle::DynamicBundle;
 use bevy::prelude::*;
 use bevy::render::render_resource::{AddressMode, FilterMode, SamplerDescriptor};
 use bevy::render::texture::ImageSampler;
-use bevy_egui::{egui, EguiContexts, EguiPlugin};
+use bevy_egui::{egui, EguiContexts};
+use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 pub const WORLD_SIZE: i32 = 5;
 
@@ -31,88 +31,128 @@ pub struct GameWorld {
     world: World,
 }
 
+impl Default for GameWorld {
+    fn default() -> Self {
+        Self {
+            world: World::new(),
+        }
+    }
+}
+
 #[derive(Resource, Default)]
 struct TexturePackLoading(Handle<Image>);
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, States)]
-enum AppState {
+pub enum AppState {
     #[default]
-    Loading,
+    LoadingTexture,
+    LoadingWorld,
     Playing,
 }
 
 fn main() {
     App::new()
+        .init_resource::<GameWorld>()
         .init_resource::<TexturePackLoading>()
         .insert_resource(Msaa::Off)
         .add_plugins((
             DefaultPlugins,
             PlayerPlugin,
             FrameTimeDiagnosticsPlugin,
-            EguiPlugin,
+            WorldInspectorPlugin::new(),
         ))
         .add_state::<AppState>()
         .configure_set(Update, TerrainGenSet)
         .configure_set(Update, ChunkMeshingSet.after(TerrainGenSet))
-        .add_systems(Startup, setup)
-        .add_systems(Update, debug_menu_system)
+        .add_systems(Startup, setup_texture)
+        .add_systems(OnEnter(AppState::LoadingWorld), setup_world)
         .add_systems(
             Update,
-            check_assets_ready.run_if(in_state(AppState::Loading)),
+            debug_menu_system.run_if(in_state(AppState::Playing)),
+        )
+        .add_systems(
+            Update,
+            loading_menu_system.run_if(
+                in_state(AppState::LoadingTexture).or_else(in_state(AppState::LoadingWorld)),
+            ),
+        )
+        .add_systems(
+            Last,
+            check_loading_world_ended.run_if(in_state(AppState::LoadingWorld)),
+        )
+        .add_systems(
+            Update,
+            check_assets_ready.run_if(in_state(AppState::LoadingTexture)),
         )
         .add_systems(
             Update,
             (queue_chunk_generation, process_chunk_generation)
                 .chain()
-                .in_set(TerrainGenSet),
+                .in_set(TerrainGenSet)
+                .run_if(in_state(AppState::LoadingWorld).or_else(in_state(AppState::Playing))),
         )
         .add_systems(
             Update,
             (prepare_chunks, queue_mesh_tasks, process_mesh_tasks)
                 .chain()
                 .in_set(ChunkMeshingSet)
-                .run_if(in_state(AppState::Playing)),
+                .run_if(in_state(AppState::LoadingWorld).or_else(in_state(AppState::Playing))),
         )
-        .add_systems(Last, clear_dirty_chunks.run_if(in_state(AppState::Playing)))
+        .add_systems(
+            Last,
+            clear_dirty_chunks
+                .run_if(in_state(AppState::LoadingWorld).or_else(in_state(AppState::Playing))),
+        )
         .run();
+}
+
+fn loading_menu_system(mut contexts: EguiContexts) {
+    egui::CentralPanel::default().show(contexts.ctx_mut(), |ui| {
+        ui.heading("Loading");
+    });
 }
 
 fn debug_menu_system(
     mut contexts: EguiContexts,
     diagnostics: Res<DiagnosticsStore>,
-    camera_query: Query<&Transform, With<CameraTag>>,
+    player_query: Query<&Transform, With<Player>>,
 ) {
-    let fps = diagnostics
-        .get(FrameTimeDiagnosticsPlugin::FPS)
-        .and_then(|fps| fps.average());
+    match player_query.get_single() {
+        Ok(player) => {
+            let fps = diagnostics
+                .get(FrameTimeDiagnosticsPlugin::FPS)
+                .and_then(|fps| fps.average());
 
-    let camera_pos = camera_query.single().translation.as_ivec3();
-    let mut chunk_pos = IVec3::new(0, 0, 0);
-    let mut local_pos = camera_pos;
-    World::make_coords_valid(&mut chunk_pos, &mut local_pos);
+            let player_pos = World::coord_to_world(player.translation);
+            let mut chunk_pos = IVec3::new(0, 0, 0);
+            let mut local_pos = player_pos;
+            World::make_coords_valid(&mut chunk_pos, &mut local_pos);
 
-    egui::Window::new("Debug").show(contexts.ctx_mut(), |ui| {
-        ui.label(format!("FPS: {:?}", fps.unwrap_or_default().round()));
+            egui::Window::new("Debug").show(contexts.ctx_mut(), |ui| {
+                ui.label(format!("FPS: {:?}", fps.unwrap_or_default().round()));
 
-        ui.separator();
+                ui.separator();
 
-        ui.heading("Position");
-        ui.label(format!(
-            "World Position: X: {:?} Y: {:?} Z: {:?}",
-            camera_pos.x, camera_pos.y, camera_pos.z
-        ));
-        ui.label(format!(
-            "Chunk Position: X: {:?} Z: {:?}",
-            chunk_pos.x, chunk_pos.z
-        ));
-        ui.label(format!(
-            "Local Position: X: {:?} Y: {:?} Z: {:?}",
-            local_pos.x, local_pos.y, local_pos.z
-        ));
-    });
+                ui.heading("Position");
+                ui.label(format!(
+                    "World Position: X: {:?} Y: {:?} Z: {:?}",
+                    player_pos.x, player_pos.y, player_pos.z
+                ));
+                ui.label(format!(
+                    "Chunk Position: X: {:?} Z: {:?}",
+                    chunk_pos.x, chunk_pos.z
+                ));
+                ui.label(format!(
+                    "Local Position: X: {:?} Y: {:?} Z: {:?}",
+                    local_pos.x, local_pos.y, local_pos.z
+                ));
+            });
+        }
+        Err(_) => (),
+    }
 }
 
-fn setup(
+fn setup_texture(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -131,8 +171,10 @@ fn setup(
     commands.insert_resource(ResourcePack {
         handle: resource_pack,
     });
+}
 
-    let mut world = World::new();
+fn setup_world(mut commands: Commands, game_world: Res<GameWorld>) {
+    let world = &game_world.world;
 
     for x in -(WORLD_SIZE - 1)..WORLD_SIZE {
         for z in -(WORLD_SIZE - 1)..WORLD_SIZE {
@@ -155,8 +197,6 @@ fn setup(
         transform: Transform::from_xyz(1.8, 300.0, 1.8).looking_at(Vec3::ZERO, Vec3::Y),
         ..default()
     });
-
-    commands.insert_resource(GameWorld { world });
 }
 
 fn check_assets_ready(
@@ -182,7 +222,7 @@ fn check_assets_ready(
             });
 
             commands.remove_resource::<TexturePackLoading>();
-            next_state.set(AppState::Playing);
+            next_state.set(AppState::LoadingWorld);
         }
         _ => {
             // NotLoaded/Loading: not fully ready yet

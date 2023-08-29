@@ -2,7 +2,6 @@ use bevy::prelude::Vec2;
 
 pub const BLOCK_TEXTURE_ROWS: u8 = 8;
 pub const BLOCK_TEXTURE_COLUMNS: u8 = 16;
-pub const BLOCK_TEXTURE_SIZE: u8 = 128;
 
 pub const UV_WIDTH: f32 = 1.0 / BLOCK_TEXTURE_COLUMNS as f32;
 pub const UV_HEIGHT: f32 = 1.0 / BLOCK_TEXTURE_ROWS as f32;

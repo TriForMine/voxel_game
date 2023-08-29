@@ -1,13 +1,13 @@
+use crate::terrain::terrain::TerrainGenTask;
 use crate::voxel::chunk::{ChunkEntity, SIZE};
 use crate::voxel::mesh_builder::create_chunk_mesh;
-use crate::voxel::world::ChunkDataMap;
-use crate::GameWorld;
 use crate::ResourcePack;
+use crate::{AppState, GameWorld};
 use bevy::asset::{Assets, Handle};
 use bevy::pbr::MaterialMeshBundle;
 use bevy::prelude::{
-    Added, Commands, Component, Entity, Mesh, Query, Res, ResMut, SystemSet, Transform, Visibility,
-    With,
+    Added, Commands, Component, Entity, Mesh, NextState, Query, Res, ResMut, SystemSet, Transform,
+    Visibility, With,
 };
 use bevy::render::mesh::PrimitiveTopology;
 use bevy::tasks::{AsyncComputeTaskPool, Task};
@@ -25,23 +25,21 @@ pub fn prepare_chunks(
 ) {
     for (chunk, chunk_key) in chunks.iter() {
         let mut entity_commands = commands.entity(chunk);
-        entity_commands.insert(
-            (MaterialMeshBundle {
-                material: resource_pack.handle.clone(),
-                mesh: meshes.add(Mesh::new(PrimitiveTopology::TriangleList)),
-                transform: Transform::from_xyz(
-                    (chunk_key.0.x * SIZE) as f32,
-                    0.0,
-                    (chunk_key.0.z * SIZE) as f32,
-                ),
-                visibility: Visibility::Hidden,
-                ..Default::default()
-            }),
-        );
+        entity_commands.insert(MaterialMeshBundle {
+            material: resource_pack.handle.clone(),
+            mesh: meshes.add(Mesh::new(PrimitiveTopology::TriangleList)),
+            transform: Transform::from_xyz(
+                (chunk_key.0.x * SIZE) as f32,
+                0.0,
+                (chunk_key.0.z * SIZE) as f32,
+            ),
+            visibility: Visibility::Hidden,
+            ..Default::default()
+        });
     }
 }
 
-pub fn clear_dirty_chunks(mut game_world: ResMut<GameWorld>) {
+pub fn clear_dirty_chunks(game_world: Res<GameWorld>) {
     game_world.world.dirty_chunks.lock().unwrap().clear();
 }
 
@@ -88,6 +86,16 @@ pub fn process_mesh_tasks(
             commands.entity(entity).remove::<ChunkMeshTask>();
         }
     });
+}
+
+pub fn check_loading_world_ended(
+    mesh_tasks: Query<(Entity, &ChunkEntity, &mut ChunkMeshTask)>,
+    gen_tasks: Query<(Entity, &ChunkEntity, &mut TerrainGenTask)>,
+    mut next_state: ResMut<NextState<AppState>>,
+) {
+    if gen_tasks.is_empty() && mesh_tasks.is_empty() {
+        next_state.set(AppState::Playing);
+    }
 }
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, SystemSet)]

@@ -2,7 +2,7 @@ use crate::terrain::terrain_generator::TERRAIN_GENERATOR;
 use crate::voxel::chunk::{Chunk, ChunkData, ChunkEntity, HEIGHT, SIZE};
 use crate::voxel::voxel::Voxel;
 use crate::GameWorld;
-use bevy::prelude::{Added, Commands, Component, Entity, Query, ResMut, SystemSet};
+use bevy::prelude::{Added, Commands, Component, Entity, Query, Res, SystemSet};
 use bevy::tasks::{AsyncComputeTaskPool, Task};
 use futures_lite::future;
 
@@ -13,8 +13,6 @@ pub fn queue_chunk_generation(
     mut commands: Commands,
     new_chunks: Query<(Entity, &ChunkEntity), Added<ChunkEntity>>,
 ) {
-    let parallel_tasks = AsyncComputeTaskPool::get().thread_num();
-
     new_chunks
         .iter()
         .map(|(entity, key)| (entity, key.0))
@@ -38,7 +36,7 @@ pub fn queue_chunk_generation(
 }
 
 pub fn process_chunk_generation(
-    mut game_world: ResMut<GameWorld>,
+    game_world: Res<GameWorld>,
     mut commands: Commands,
     mut gen_chunks: Query<(Entity, &ChunkEntity, &mut TerrainGenTask)>,
 ) {

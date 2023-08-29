@@ -27,7 +27,7 @@ impl TerrainGenerator {
             SIZE.try_into().unwrap(),
         )
         .with_freq(0.008)
-        .with_seed(700)
+        .with_seed(self.seed)
         .generate();
 
         for x in 0..(SIZE) {

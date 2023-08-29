@@ -1,8 +1,7 @@
-use crate::flycam::prelude::IVec3;
 use crate::voxel::direction::Direction;
 use crate::voxel::texture::{convert_face_id_to_uv, UvCoordinate};
 use crate::voxel::voxel::{Voxel, VoxelType};
-use bevy::math::Vec3;
+use bevy::math::{IVec3, Vec3};
 
 pub struct Quad {
     pub direction: Direction,
@@ -10,7 +9,7 @@ pub struct Quad {
     pub uvs: UvCoordinate,
 }
 
-const HALF_SIZE: f32 = 0.5f32;
+pub const HALF_SIZE: f32 = 0.5f32;
 
 impl Quad {
     pub fn from_direction(direction: Direction, i_pos: IVec3, voxel_type: VoxelType) -> Self {

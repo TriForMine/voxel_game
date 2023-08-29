@@ -1,5 +1,6 @@
-use crate::voxel::chunk::{Chunk, SIZE};
-use bevy::math::{IVec3, Vec3};
+use crate::voxel::chunk::{Chunk, HEIGHT, SIZE};
+use crate::voxel::voxel::VoxelType;
+use bevy::math::{IVec2, IVec3, Vec3};
 use bevy::prelude::{Component, Entity, Mesh};
 use bevy::tasks::Task;
 use std::collections::{HashMap, HashSet};
@@ -46,15 +47,57 @@ impl World {
         }
     }
 
+    pub fn check_block_at_coord(&self, global_coord: &IVec3) -> bool {
+        let mut chunk_coord = IVec3::default();
+        let mut local_coord = *global_coord;
+        Self::make_coords_valid(&mut chunk_coord, &mut local_coord);
+        let chunks = self.chunk_data_map.lock().unwrap();
+        let chunk = chunks.get(&chunk_coord);
+
+        if let Some(chunk) = chunk {
+            chunk.voxels[Chunk::get_index(&local_coord)].voxel_type != VoxelType::Void
+        } else {
+            false
+        }
+    }
+
+    pub fn get_highest_block_at_coord(&self, global_coord: &IVec2) -> IVec3 {
+        let mut chunk_coord = IVec3::default();
+        let mut local_coord = IVec3::new(global_coord.x, HEIGHT - 1, global_coord.y);
+        Self::make_coords_valid(&mut chunk_coord, &mut local_coord);
+        let chunks = self.chunk_data_map.lock().unwrap();
+        let chunk = chunks.get(&chunk_coord);
+
+        if let Some(chunk) = chunk {
+            while local_coord.y > 0
+                && chunk.voxels[Chunk::get_index(&local_coord)].voxel_type == VoxelType::Void
+            {
+                local_coord.y -= 1;
+            }
+        } else {
+            todo!("Force load chunk, to get the height");
+        };
+
+        Self::chunk_local_to_world(&chunk_coord, &local_coord)
+    }
+
     pub fn coord_to_chunk_local(origin: Vec3) -> IVec3 {
         IVec3::new(
-            ((origin.x - 0.5).round() as i32) % SIZE,
-            (origin.y - 0.5).round() as i32,
-            ((origin.z - 0.5).round() as i32) % SIZE,
+            ((origin.x + 0.5).floor() as i32) % SIZE,
+            origin.y.floor() as i32,
+            ((origin.z + 0.5).floor() as i32) % SIZE,
         )
     }
 
-    pub fn chunk_local_to_world(chunk_coord: IVec3, voxel_coord: IVec3) -> IVec3 {
+    pub fn coord_to_world(origin: Vec3) -> IVec3 {
+        IVec3::new(
+            (origin.x + 0.5).floor() as i32,
+            origin.y.floor() as i32,
+            (origin.z + 0.5).floor() as i32,
+        )
+    }
+
+    pub fn chunk_local_to_world(chunk_coord: &IVec3, voxel_coord: &IVec3) -> IVec3 {
         IVec3::new(
             chunk_coord.x * SIZE + voxel_coord.x,
             voxel_coord.y,
