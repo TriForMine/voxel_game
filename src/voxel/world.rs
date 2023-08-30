@@ -4,27 +4,27 @@ use bevy::math::{IVec2, IVec3, Vec3};
 use bevy::prelude::{Component, Entity, Mesh};
 use bevy::tasks::Task;
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock, Weak};
 
 #[derive(Component)]
 pub struct ComputeMesh(pub Task<(Mesh, IVec3)>);
 
 pub const DEFAULT_MAX_CHUNKS: usize = 10000;
 
-pub type ChunkDataMap = HashMap<IVec3, Chunk>;
+pub type ChunkDataMap = HashMap<IVec3, Arc<RwLock<Chunk>>>;
 
 pub struct World {
-    pub(crate) chunk_data_map: Arc<Mutex<ChunkDataMap>>,
-    pub(crate) chunk_entities: Arc<Mutex<HashMap<IVec3, Entity>>>,
-    pub(crate) dirty_chunks: Arc<Mutex<HashSet<IVec3>>>,
+    pub(crate) chunk_data_map: Arc<RwLock<ChunkDataMap>>,
+    pub(crate) chunk_entities: Arc<RwLock<HashMap<IVec3, Entity>>>,
+    pub(crate) dirty_chunks: Arc<RwLock<HashSet<IVec3>>>,
 }
 
 impl World {
     pub fn new() -> Self {
         Self {
-            chunk_data_map: Arc::new(Mutex::new(HashMap::with_capacity(DEFAULT_MAX_CHUNKS))),
-            chunk_entities: Arc::new(Mutex::new(HashMap::with_capacity(DEFAULT_MAX_CHUNKS))),
-            dirty_chunks: Arc::new(Mutex::new(HashSet::with_capacity(DEFAULT_MAX_CHUNKS))),
+            chunk_data_map: Arc::new(RwLock::new(HashMap::with_capacity(DEFAULT_MAX_CHUNKS))),
+            chunk_entities: Arc::new(RwLock::new(HashMap::with_capacity(DEFAULT_MAX_CHUNKS))),
+            dirty_chunks: Arc::new(RwLock::new(HashSet::with_capacity(DEFAULT_MAX_CHUNKS))),
         }
     }
 
@@ -51,11 +51,15 @@ impl World {
         let mut chunk_coord = IVec3::default();
         let mut local_coord = *global_coord;
         Self::make_coords_valid(&mut chunk_coord, &mut local_coord);
-        let chunks = self.chunk_data_map.lock().unwrap();
+        let chunks = self.chunk_data_map.read().unwrap();
         let chunk = chunks.get(&chunk_coord);
 
         if let Some(chunk) = chunk {
-            chunk.voxels[Chunk::get_index(&local_coord)].voxel_type != VoxelType::Void
+            if let Some(voxel) = chunk.read().unwrap().get_voxel(local_coord) {
+                voxel.voxel_type != VoxelType::Void
+            } else {
+                false
+            }
         } else {
             false
         }
@@ -65,12 +69,13 @@ impl World {
         let mut chunk_coord = IVec3::default();
         let mut local_coord = IVec3::new(global_coord.x, HEIGHT - 1, global_coord.y);
         Self::make_coords_valid(&mut chunk_coord, &mut local_coord);
-        let chunks = self.chunk_data_map.lock().unwrap();
+        let chunks = self.chunk_data_map.read().unwrap();
         let chunk = chunks.get(&chunk_coord);
 
         if let Some(chunk) = chunk {
             while local_coord.y > 0
-                && chunk.voxels[Chunk::get_index(&local_coord)].voxel_type == VoxelType::Void
+                && chunk.read().unwrap().voxels[Chunk::get_index(&local_coord)].voxel_type
+                    == VoxelType::Void
             {
                 local_coord.y -= 1;
             }
@@ -103,6 +108,31 @@ impl World {
             voxel_coord.y,
             chunk_coord.z * SIZE + voxel_coord.z,
         )
+    }
+
+    pub fn get_neighbors_chunks(&self, chunk_coord: &IVec3) -> [Option<Weak<RwLock<Chunk>>>; 4] {
+        [
+            self.chunk_data_map
+                .read()
+                .unwrap()
+                .get(&IVec3::new(chunk_coord.x - 1, chunk_coord.y, chunk_coord.z))
+                .map(|chunk| Arc::downgrade(chunk)),
+            self.chunk_data_map
+                .read()
+                .unwrap()
+                .get(&IVec3::new(chunk_coord.x + 1, chunk_coord.y, chunk_coord.z))
+                .map(|chunk| Arc::downgrade(chunk)),
+            self.chunk_data_map
+                .read()
+                .unwrap()
+                .get(&IVec3::new(chunk_coord.x, chunk_coord.y, chunk_coord.z - 1))
+                .map(|chunk| Arc::downgrade(chunk)),
+            self.chunk_data_map
+                .read()
+                .unwrap()
+                .get(&IVec3::new(chunk_coord.x, chunk_coord.y, chunk_coord.z + 1))
+                .map(|chunk| Arc::downgrade(chunk)),
+        ]
     }
 }
 

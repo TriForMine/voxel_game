@@ -1,20 +1,16 @@
 use super::chunk::HEIGHT;
 use super::chunk::SIZE;
+use crate::voxel::chunk::Chunk;
 use crate::voxel::direction::Direction;
 use crate::voxel::quad::Quad;
 use crate::voxel::voxel::Voxel;
-use crate::voxel::world::{ChunkDataMap, World};
-use crate::WORLD_SIZE;
-use anyhow::*;
 use bevy::math::IVec3;
 use bevy::prelude::*;
 use bevy::render::mesh::Indices;
 use bevy::render::mesh::Mesh;
 use bevy::render::render_resource::PrimitiveTopology;
-use std::time::Instant;
 
-pub fn create_chunk_mesh(chunk_data_map: &ChunkDataMap, chunk_pos: &IVec3) -> Mesh {
-    let start = Instant::now();
+pub fn create_chunk_mesh(chunk: &Chunk) -> Mesh {
     let mut chunk_mesh = Mesh::new(PrimitiveTopology::TriangleList);
     let mut quads = Vec::<Quad>::new();
 
@@ -22,22 +18,22 @@ pub fn create_chunk_mesh(chunk_data_map: &ChunkDataMap, chunk_pos: &IVec3) -> Me
         for z in 0..(SIZE) {
             for y in 0..(HEIGHT) {
                 let voxel_pos_local = IVec3::new(x, y, z);
+                let voxel = chunk.get_voxel(voxel_pos_local);
 
-                if let Result::Ok((voxel, front, back, left, right, top, down)) =
-                    adjacent_voxels(chunk_data_map, chunk_pos, &voxel_pos_local)
-                {
-                    process_voxel(
-                        voxel.as_ref(),
-                        voxel_pos_local,
-                        front.as_ref(),
-                        back.as_ref(),
-                        left.as_ref(),
-                        right.as_ref(),
-                        top.as_ref(),
-                        down.as_ref(),
-                        &mut quads,
-                    );
-                }
+                let [right, left, top, down, front, back] =
+                    chunk.get_voxel_neighbors(voxel_pos_local);
+
+                process_voxel(
+                    voxel.as_ref(),
+                    voxel_pos_local,
+                    front.as_ref(),
+                    back.as_ref(),
+                    left.as_ref(),
+                    right.as_ref(),
+                    top.as_ref(),
+                    down.as_ref(),
+                    &mut quads,
+                );
             }
         }
     }
@@ -65,14 +61,6 @@ pub fn create_chunk_mesh(chunk_data_map: &ChunkDataMap, chunk_pos: &IVec3) -> Me
         indices.push(vert_index + 3);
         vert_index += 4;
     }
-
-    let duration = start.elapsed();
-
-    trace!(
-        "Chunk vertices and indices generated in: {:?} for: {:?}",
-        duration,
-        chunk_pos
-    );
 
     chunk_mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, vertices);
     chunk_mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
@@ -169,83 +157,4 @@ fn process_voxel(
             }
         };
     };
-}
-
-fn try_get_voxel(
-    chunk_data_map: &ChunkDataMap,
-    chunk_pos: &IVec3,
-    local_pos: &IVec3,
-) -> Option<Voxel> {
-    let mut chunk_pos = *chunk_pos;
-    let mut local_pos = *local_pos;
-    World::make_coords_valid(&mut chunk_pos, &mut local_pos);
-
-    if chunk_pos.x < -WORLD_SIZE
-        || chunk_pos.x > WORLD_SIZE
-        || chunk_pos.z < -WORLD_SIZE
-        || chunk_pos.z > WORLD_SIZE
-    {
-        println!("Chunk Pos: {:?} outside of the world", chunk_pos);
-        return Some(Voxel::new_empty());
-    }
-
-    let chunk = chunk_data_map.get(&chunk_pos);
-
-    if let Some(chunk) = chunk {
-        chunk.get_voxel(local_pos).copied()
-    } else {
-        None
-    }
-}
-
-pub fn adjacent_voxels(
-    chunk_data_map: &ChunkDataMap,
-    chunk_pos: &IVec3,
-    local_pos: &IVec3,
-) -> Result<(
-    Option<Voxel>,
-    Option<Voxel>,
-    Option<Voxel>,
-    Option<Voxel>,
-    Option<Voxel>,
-    Option<Voxel>,
-    Option<Voxel>,
-)> {
-    let voxel = try_get_voxel(chunk_data_map, chunk_pos, local_pos);
-
-    let front = try_get_voxel(
-        chunk_data_map,
-        chunk_pos,
-        &(*local_pos + IVec3::new(0, 0, 1)),
-    );
-
-    let back = try_get_voxel(
-        chunk_data_map,
-        chunk_pos,
-        &(*local_pos + IVec3::new(0, 0, -1)),
-    );
-
-    let left = try_get_voxel(
-        chunk_data_map,
-        chunk_pos,
-        &(*local_pos + IVec3::new(-1, 0, 0)),
-    );
-    let right = try_get_voxel(
-        chunk_data_map,
-        chunk_pos,
-        &(*local_pos + IVec3::new(1, 0, 0)),
-    );
-
-    let top = try_get_voxel(
-        chunk_data_map,
-        chunk_pos,
-        &(*local_pos + IVec3::new(0, 1, 0)),
-    );
-    let down = try_get_voxel(
-        chunk_data_map,
-        chunk_pos,
-        &(*local_pos + IVec3::new(0, -1, 0)),
-    );
-
-    Ok((voxel, front, back, left, right, top, down))
 }

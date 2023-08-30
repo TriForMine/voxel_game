@@ -16,8 +16,8 @@ use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy::render::render_resource::{AddressMode, FilterMode, SamplerDescriptor};
 use bevy::render::texture::ImageSampler;
-use bevy_egui::{egui, EguiContexts};
-use bevy_inspector_egui::quick::WorldInspectorPlugin;
+use bevy_egui::egui::RichText;
+use bevy_egui::{egui, EguiContexts, EguiPlugin};
 
 pub const WORLD_SIZE: i32 = 5;
 
@@ -59,7 +59,7 @@ fn main() {
             DefaultPlugins,
             PlayerPlugin,
             FrameTimeDiagnosticsPlugin,
-            WorldInspectorPlugin::new(),
+            EguiPlugin,
         ))
         .add_state::<AppState>()
         .configure_set(Update, TerrainGenSet)
@@ -128,25 +128,45 @@ fn debug_menu_system(
             let mut local_pos = player_pos;
             World::make_coords_valid(&mut chunk_pos, &mut local_pos);
 
-            egui::Window::new("Debug").show(contexts.ctx_mut(), |ui| {
-                ui.label(format!("FPS: {:?}", fps.unwrap_or_default().round()));
+            egui::Window::new("Debug")
+                .movable(false)
+                .resizable(false)
+                .collapsible(false)
+                .frame(egui::Frame::none())
+                .title_bar(false)
+                .anchor(egui::Align2::LEFT_TOP, egui::Vec2::new(10.0, 10.0))
+                .show(contexts.ctx_mut(), |ui| {
+                    ui.colored_label(
+                        egui::Color32::from_rgb(255, 255, 255),
+                        format!("FPS: {:?}", fps.unwrap_or_default().round()),
+                    );
 
-                ui.separator();
+                    ui.separator();
 
-                ui.heading("Position");
-                ui.label(format!(
-                    "World Position: X: {:?} Y: {:?} Z: {:?}",
-                    player_pos.x, player_pos.y, player_pos.z
-                ));
-                ui.label(format!(
-                    "Chunk Position: X: {:?} Z: {:?}",
-                    chunk_pos.x, chunk_pos.z
-                ));
-                ui.label(format!(
-                    "Local Position: X: {:?} Y: {:?} Z: {:?}",
-                    local_pos.x, local_pos.y, local_pos.z
-                ));
-            });
+                    ui.heading(
+                        RichText::new("Position")
+                            .color(egui::Color32::from_rgb(255, 255, 255))
+                            .heading(),
+                    );
+                    ui.colored_label(
+                        egui::Color32::from_rgb(255, 255, 255),
+                        format!(
+                            "World Position: X: {:?} Y: {:?} Z: {:?}",
+                            player_pos.x, player_pos.y, player_pos.z
+                        ),
+                    );
+                    ui.colored_label(
+                        egui::Color32::from_rgb(255, 255, 255),
+                        format!("Chunk Position: X: {:?} Z: {:?}", chunk_pos.x, chunk_pos.z),
+                    );
+                    ui.colored_label(
+                        egui::Color32::from_rgb(255, 255, 255),
+                        format!(
+                            "Local Position: X: {:?} Y: {:?} Z: {:?}",
+                            local_pos.x, local_pos.y, local_pos.z
+                        ),
+                    );
+                });
         }
         Err(_) => (),
     }
@@ -182,7 +202,7 @@ fn setup_world(mut commands: Commands, game_world: Res<GameWorld>) {
 
             world
                 .chunk_entities
-                .lock()
+                .write()
                 .unwrap()
                 .insert(chunk_pos, commands.spawn(ChunkEntity(chunk_pos)).id());
         }

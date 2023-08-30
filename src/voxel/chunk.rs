@@ -1,6 +1,7 @@
-use crate::voxel::voxel::{Voxel, VoxelType};
+use crate::voxel::voxel::Voxel;
 use bevy::math::IVec3;
 use bevy::prelude::Component;
+use std::sync::{RwLock, Weak};
 
 use lazy_static::*;
 lazy_static! {
@@ -16,12 +17,28 @@ pub const HEIGHT: i32 = 256;
 
 pub type ChunkData = [Voxel; (SIZE * SIZE * HEIGHT) as usize];
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Debug)]
 pub struct Chunk {
     pub voxels: ChunkData,
+    pub pos: IVec3,
+    neighbors: [Weak<RwLock<Chunk>>; 4],
+}
+
+impl Default for Chunk {
+    fn default() -> Chunk {
+        Chunk {
+            voxels: [Voxel::new_empty(); (SIZE * SIZE * HEIGHT) as usize],
+            pos: IVec3::default(),
+            neighbors: [Weak::new(), Weak::new(), Weak::new(), Weak::new()],
+        }
+    }
 }
 
 impl Chunk {
+    pub fn set_neighbor(&mut self, index: usize, chunk: Weak<RwLock<Chunk>>) {
+        self.neighbors[index] = chunk;
+    }
+
     pub fn get_index(coordinate: &IVec3) -> usize {
         (coordinate.z * SIZE * HEIGHT + coordinate.y * SIZE + coordinate.x) as usize
     }
@@ -33,56 +50,77 @@ impl Chunk {
         IVec3::new(x, y, z)
     }
 
-    pub fn is_outside_chunk(coordinate: &IVec3) -> bool {
-        coordinate.y < 0
-            || coordinate.y >= HEIGHT
-            || coordinate.x < 0
-            || coordinate.x >= SIZE
-            || coordinate.z < 0
-            || coordinate.z >= SIZE
+    pub fn is_in_chunk(coordinate: &IVec3) -> bool {
+        coordinate.y >= 0
+            && coordinate.y < HEIGHT
+            && coordinate.x >= 0
+            && coordinate.x < SIZE
+            && coordinate.z >= 0
+            && coordinate.z < SIZE
     }
 
-    pub fn get_voxel(&self, coordinate: IVec3) -> Option<&Voxel> {
-        if Self::is_outside_chunk(&coordinate) {
-            return None;
+    pub fn get_voxel(&self, coordinate: IVec3) -> Option<Voxel> {
+        if Self::is_in_chunk(&coordinate) {
+            Some(self.voxels[Self::get_index(&coordinate)])
+        } else if coordinate.x < 0 {
+            // Left
+            self.neighbors[0].upgrade().map(|chunk| {
+                chunk.read().unwrap().voxels
+                    [Self::get_index(&(coordinate + IVec3::new(SIZE, 0, 0)))]
+            })
+        } else if coordinate.x >= SIZE {
+            // Right
+            self.neighbors[1].upgrade().map(|chunk| {
+                chunk.read().unwrap().voxels
+                    [Self::get_index(&(coordinate - IVec3::new(SIZE, 0, 0)))]
+            })
+        } else if coordinate.z < 0 {
+            // Back
+            self.neighbors[2].upgrade().map(|chunk| {
+                chunk.read().unwrap().voxels
+                    [Self::get_index(&(coordinate + IVec3::new(0, 0, SIZE)))]
+            })
+        } else if coordinate.z >= SIZE {
+            // Front
+            self.neighbors[3].upgrade().map(|chunk| {
+                chunk.read().unwrap().voxels
+                    [Self::get_index(&(coordinate - IVec3::new(0, 0, SIZE)))]
+            })
+        } else {
+            None
         }
-
-        let index = Self::get_index(&coordinate);
-        self.get_voxel_from_index(index)
     }
 
-    pub fn get_mut_voxel(&mut self, coordinate: &IVec3) -> Option<&mut Voxel> {
-        if Self::is_outside_chunk(&coordinate) {
-            return None;
-        }
-
-        let index = Self::get_index(&coordinate);
-        self.get_mut_voxel_from_index(index)
-    }
-
-    pub fn get_voxel_from_index(&self, index: usize) -> Option<&Voxel> {
-        self.voxels.get(index)
-    }
-
-    pub fn get_mut_voxel_from_index(&mut self, index: usize) -> Option<&mut Voxel> {
-        self.voxels.get_mut(index)
-    }
-
-    pub fn new() -> Self {
-        let chunk = Self {
-            voxels: [Voxel::new_empty(); (SIZE * SIZE * HEIGHT) as usize],
-        };
-        chunk
-    }
-
-    pub fn new_from_voxels(voxels: ChunkData) -> Self {
-        Self { voxels }
-    }
-
-    fn reset(&mut self) {
-        for voxel in self.voxels.iter_mut() {
-            voxel.set_type(VoxelType::Void)
-        }
+    /// Get the neighbors of a voxel
+    ///
+    /// # Arguments
+    ///
+    /// * `coordinate` - The coordinate of the voxel
+    ///
+    /// # Returns
+    ///
+    /// An array of 6 options of voxels
+    ///
+    /// 0: right
+    ///
+    /// 1: left
+    ///
+    /// 2: top
+    ///
+    /// 3: bottom
+    ///
+    /// 4: front
+    ///
+    /// 5: back
+    pub fn get_voxel_neighbors(&self, coordinate: IVec3) -> [Option<Voxel>; 6] {
+        let mut neighbors = [None; 6];
+        neighbors[0] = self.get_voxel(coordinate + IVec3::new(1, 0, 0));
+        neighbors[1] = self.get_voxel(coordinate + IVec3::new(-1, 0, 0));
+        neighbors[2] = self.get_voxel(coordinate + IVec3::new(0, 1, 0));
+        neighbors[3] = self.get_voxel(coordinate + IVec3::new(0, -1, 0));
+        neighbors[4] = self.get_voxel(coordinate + IVec3::new(0, 0, 1));
+        neighbors[5] = self.get_voxel(coordinate + IVec3::new(0, 0, -1));
+        neighbors
     }
 }
 
