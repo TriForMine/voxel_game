@@ -40,12 +40,21 @@ pub fn prepare_chunks(
 }
 
 pub fn clear_dirty_chunks(game_world: Res<GameWorld>) {
-    game_world.world.dirty_chunks.write().unwrap().clear();
+    game_world
+        .world
+        .write()
+        .unwrap()
+        .dirty_chunks
+        .write()
+        .unwrap()
+        .clear();
 }
 
 pub fn queue_mesh_tasks(mut commands: Commands, game_world: Res<GameWorld>) {
     for chunk_coord in game_world
         .world
+        .read()
+        .unwrap()
         .dirty_chunks
         .read()
         .unwrap()
@@ -54,12 +63,12 @@ pub fn queue_mesh_tasks(mut commands: Commands, game_world: Res<GameWorld>) {
     {
         let pool = AsyncComputeTaskPool::get();
 
-        let chunk_entities = Arc::clone(&game_world.world.chunk_entities);
+        let chunk_entities = Arc::clone(&game_world.world.read().unwrap().chunk_entities);
         let chunk_entities = chunk_entities.read().unwrap();
         let chunk_entity = chunk_entities.get(&chunk_coord);
 
         if let Some(entity) = chunk_entity {
-            let chunk_data_map = Arc::clone(&game_world.world.chunk_data_map);
+            let chunk_data_map = Arc::clone(&game_world.world.read().unwrap().chunk_data_map);
 
             commands
                 .entity(*entity)

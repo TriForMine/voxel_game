@@ -1,5 +1,5 @@
 use crate::voxel::chunk::{Chunk, HEIGHT, SIZE};
-use crate::voxel::voxel::VoxelType;
+use crate::voxel::voxel::{Voxel, VoxelType};
 use bevy::math::{IVec2, IVec3, Vec3};
 use bevy::prelude::{Component, Entity, Mesh};
 use bevy::tasks::Task;
@@ -47,7 +47,7 @@ impl World {
         }
     }
 
-    pub fn check_block_at_coord(&self, global_coord: &IVec3) -> bool {
+    pub fn get_voxel(&self, global_coord: &IVec3) -> Option<Voxel> {
         let mut chunk_coord = IVec3::default();
         let mut local_coord = *global_coord;
         Self::make_coords_valid(&mut chunk_coord, &mut local_coord);
@@ -55,11 +55,30 @@ impl World {
         let chunk = chunks.get(&chunk_coord);
 
         if let Some(chunk) = chunk {
-            if let Some(voxel) = chunk.read().unwrap().get_voxel(local_coord) {
-                voxel.voxel_type != VoxelType::Void
-            } else {
-                false
-            }
+            chunk.read().unwrap().get_voxel(local_coord)
+        } else {
+            None
+        }
+    }
+
+    pub fn edit_voxel(&self, global_coord: &IVec3, voxel_type: VoxelType) {
+        let mut chunk_coord = IVec3::default();
+        let mut local_coord = *global_coord;
+        Self::make_coords_valid(&mut chunk_coord, &mut local_coord);
+        let chunks = self.chunk_data_map.read().unwrap();
+        let chunk = chunks.get(&chunk_coord);
+
+        if let Some(chunk) = chunk {
+            chunk
+                .write()
+                .unwrap()
+                .edit_voxel(self, local_coord, voxel_type);
+        }
+    }
+
+    pub fn check_block_at_coord(&self, global_coord: &IVec3) -> bool {
+        if let Some(voxel) = self.get_voxel(global_coord) {
+            voxel.voxel_type != VoxelType::Void
         } else {
             false
         }
@@ -86,18 +105,10 @@ impl World {
         Self::chunk_local_to_world(&chunk_coord, &local_coord)
     }
 
-    pub fn coord_to_chunk_local(origin: Vec3) -> IVec3 {
-        IVec3::new(
-            ((origin.x + 0.5).floor() as i32) % SIZE,
-            origin.y.floor() as i32,
-            ((origin.z + 0.5).floor() as i32) % SIZE,
-        )
-    }
-
     pub fn coord_to_world(origin: Vec3) -> IVec3 {
         IVec3::new(
             (origin.x + 0.5).floor() as i32,
-            origin.y.floor() as i32,
+            (origin.y + 0.5).floor() as i32,
             (origin.z + 0.5).floor() as i32,
         )
     }
@@ -133,6 +144,53 @@ impl World {
                 .get(&IVec3::new(chunk_coord.x, chunk_coord.y, chunk_coord.z + 1))
                 .map(|chunk| Arc::downgrade(chunk)),
         ]
+    }
+
+    /// Ray cast from the origin until it hits a voxel.
+    /// Returns the position of the voxel, the position of the previous voxel and the voxel itself.
+    /// If it didn't hit a voxel, returns None.
+    ///
+    /// # Arguments
+    ///
+    /// * `origin` - The origin of the ray.
+    ///
+    /// * `direction` - The direction of the ray.
+    ///
+    /// * `max_distance` - The maximum distance the ray can travel.
+    ///
+    /// * `step` - The distance between each step of the ray.
+    pub fn ray_casting_voxel(
+        &self,
+        origin: Vec3,
+        direction: Vec3,
+        max_distance: f32,
+        step: f32,
+    ) -> Option<(IVec3, IVec3, Voxel)> {
+        let mut position = origin;
+        let mut last_position = origin;
+        let mut last_voxel = None;
+        let mut distance = 0.0;
+
+        while distance < max_distance {
+            position += direction * step;
+            let voxel = self.get_voxel(&World::coord_to_world(position));
+            if voxel.is_some() && voxel.unwrap().voxel_type != VoxelType::Void {
+                last_voxel = voxel;
+                break;
+            }
+            last_position = position;
+            distance += step;
+        }
+
+        if let Some(voxel) = last_voxel {
+            Some((
+                World::coord_to_world(position),
+                World::coord_to_world(last_position),
+                voxel,
+            ))
+        } else {
+            None
+        }
     }
 }
 

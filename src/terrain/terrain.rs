@@ -43,7 +43,11 @@ pub fn process_chunk_generation(
 ) {
     gen_chunks.for_each_mut(|(entity, chunk_entity, mut gen_task)| {
         if let Some(chunk) = future::block_on(future::poll_once(&mut gen_task.0)) {
-            let neighbors = game_world.world.get_neighbors_chunks(&chunk_entity.0);
+            let neighbors = game_world
+                .world
+                .read()
+                .unwrap()
+                .get_neighbors_chunks(&chunk_entity.0);
 
             for i in 0..neighbors.len() {
                 let neighbor = neighbors.get(i).unwrap();
@@ -59,6 +63,8 @@ pub fn process_chunk_generation(
 
             game_world
                 .world
+                .read()
+                .unwrap()
                 .chunk_data_map
                 .write()
                 .unwrap()
@@ -66,6 +72,8 @@ pub fn process_chunk_generation(
 
             game_world
                 .world
+                .read()
+                .unwrap()
                 .dirty_chunks
                 .write()
                 .unwrap()

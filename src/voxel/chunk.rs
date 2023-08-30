@@ -1,4 +1,5 @@
-use crate::voxel::voxel::Voxel;
+use crate::voxel::voxel::{Voxel, VoxelType};
+use crate::voxel::world::World;
 use bevy::math::IVec3;
 use bevy::prelude::Component;
 use std::sync::{RwLock, Weak};
@@ -43,13 +44,6 @@ impl Chunk {
         (coordinate.z * SIZE * HEIGHT + coordinate.y * SIZE + coordinate.x) as usize
     }
 
-    pub fn get_local_coordinate(index: i32) -> IVec3 {
-        let z = index / SIZE * HEIGHT;
-        let y = (index - z * SIZE * HEIGHT) / SIZE;
-        let x = index - z * SIZE * HEIGHT - y * SIZE;
-        IVec3::new(x, y, z)
-    }
-
     pub fn is_in_chunk(coordinate: &IVec3) -> bool {
         coordinate.y >= 0
             && coordinate.y < HEIGHT
@@ -88,6 +82,40 @@ impl Chunk {
             })
         } else {
             None
+        }
+    }
+
+    pub fn edit_voxel(&mut self, world: &World, local_coordinate: IVec3, new_type: VoxelType) {
+        if Self::is_in_chunk(&local_coordinate) {
+            self.voxels[Self::get_index(&local_coordinate)].voxel_type = new_type;
+            self.update_chunk(world);
+            self.update_surrounding_voxels(world, local_coordinate);
+        }
+    }
+
+    pub fn update_chunk(&mut self, world: &World) {
+        let dirty_chunks = &world.dirty_chunks;
+        dirty_chunks.write().unwrap().insert(self.pos);
+    }
+
+    pub fn update_surrounding_voxels(&mut self, world: &World, local_coordinate: IVec3) {
+        if local_coordinate.x == 0 {
+            self.update_neighbor(world, 0);
+        } else if local_coordinate.x == SIZE - 1 {
+            self.update_neighbor(world, 1);
+        }
+
+        if local_coordinate.z == 0 {
+            self.update_neighbor(world, 2);
+        } else if local_coordinate.z == SIZE - 1 {
+            self.update_neighbor(world, 3);
+        }
+    }
+
+    pub fn update_neighbor(&mut self, world: &World, index: usize) {
+        if let Some(neighbor) = self.neighbors[index].upgrade() {
+            let mut neighbor = neighbor.write().unwrap();
+            neighbor.update_chunk(world);
         }
     }
 
