@@ -22,10 +22,6 @@ impl Default for Voxel {
 }
 
 impl Voxel {
-    pub fn new(voxel_type: VoxelType) -> Self {
-        Self { voxel_type }
-    }
-
     pub fn new_empty() -> Self {
         Self {
             voxel_type: VoxelType::Void,

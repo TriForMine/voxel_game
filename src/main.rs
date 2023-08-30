@@ -121,7 +121,6 @@ fn debug_menu_system(
     mut contexts: EguiContexts,
     diagnostics: Res<DiagnosticsStore>,
     player_query: Query<(&Player, &Transform), (With<Player>, Without<PlayerCamera>)>,
-    game_world: Res<GameWorld>,
 ) {
     if let Ok((player, player_transform)) = player_query.get_single() {
         let fps = diagnostics

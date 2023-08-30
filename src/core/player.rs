@@ -425,14 +425,14 @@ fn initial_grab_on_player_spawn(
 }
 
 fn player_handle_voxel_raycast(
-    mut player_query: Query<(&mut Player, &Transform), (With<Player>, Without<PlayerCamera>)>,
+    mut player_query: Query<&mut Player, (With<Player>, Without<PlayerCamera>)>,
     primary_window: Query<&Window, With<PrimaryWindow>>,
-    player_camera_query: Query<&Transform, (Without<Player>, With<PlayerCamera>)>,
+    player_camera_query: Query<&GlobalTransform, (Without<Player>, With<PlayerCamera>)>,
     game_world: Res<GameWorld>,
     buttons: Res<Input<MouseButton>>,
 ) {
     if let Ok(window) = primary_window.get_single() {
-        if let Ok((mut player, player_transform)) = player_query.get_single_mut() {
+        if let Ok(mut player) = player_query.get_single_mut() {
             let player_camera = if let Ok(player_camera) = player_camera_query.get_single() {
                 player_camera
             } else {
@@ -440,13 +440,8 @@ fn player_handle_voxel_raycast(
             };
 
             let raycast = game_world.world.read().unwrap().ray_casting_voxel(
-                player_transform.translation + player_camera.translation,
-                Vec3::new(
-                    player_transform.forward().x,
-                    player_camera.forward().y,
-                    player_transform.forward().z,
-                )
-                .normalize(),
+                player_camera.translation(),
+                player_camera.forward(),
                 RAY_CASTING_DISTANCE,
                 RAY_CASTING_STEP,
             );
