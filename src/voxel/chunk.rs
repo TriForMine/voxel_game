@@ -3,15 +3,20 @@ use crate::voxel::block::{Block, BlockType};
 use crate::voxel::world::World;
 use bevy::math::IVec3;
 use bevy::prelude::*;
+use lz4::block::{compress, decompress, CompressionMode};
 use std::sync::{RwLock, Weak};
 
+use crate::meshing::check_loading_world_ended;
 use crate::terrain::chunk_generation::{process_chunk_generation, queue_chunk_generation};
 use crate::terrain::meshing::{
-    check_loading_world_ended, clear_dirty_chunks, prepare_chunks, process_mesh_tasks,
+    check_server_loading_world_ended, clear_dirty_chunks, prepare_chunks, process_mesh_tasks,
     queue_mesh_tasks, ChunkMeshingSet,
 };
-use crate::ClientState;
+use crate::{ClientState, ServerState};
 use lazy_static::*;
+use serde::{Deserialize, Serialize};
+use serde_big_array::BigArray;
+
 lazy_static! {
     // when SIZE 16, BIT_SIZE is 4
     // by shifting 16 << 4 we get 1
@@ -23,12 +28,16 @@ lazy_static! {
 pub const SIZE: i32 = 16;
 pub const HEIGHT: i32 = 256;
 
+pub type CompressedChunk = Vec<u8>;
 pub type ChunkData = [Block; (SIZE * SIZE * HEIGHT) as usize];
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Chunk {
+    #[serde(with = "BigArray")]
     pub voxels: ChunkData,
     pub pos: IVec3,
+
+    #[serde(skip)]
     neighbors: [Weak<RwLock<Chunk>>; 4],
 }
 
@@ -43,6 +52,18 @@ impl Default for Chunk {
 }
 
 impl Chunk {
+    pub fn from_compressed(bytes: &CompressedChunk) -> Self {
+        let decompressed = decompress(&bytes, None).unwrap();
+
+        bincode::deserialize(&decompressed).unwrap()
+    }
+
+    pub fn compress(&self) -> CompressedChunk {
+        let data = bincode::serialize(self).unwrap();
+
+        compress(&data, Some(CompressionMode::HIGHCOMPRESSION(12)), true).unwrap()
+    }
+
     pub fn set_neighbor(&mut self, index: usize, chunk: Weak<RwLock<Chunk>>) {
         self.neighbors[index] = chunk;
     }
@@ -93,7 +114,9 @@ impl Chunk {
     }
 
     pub fn edit_voxel(&mut self, world: &World, local_coordinate: IVec3, new_type: BlockType) {
-        if Self::is_in_chunk(&local_coordinate) {
+        if Self::is_in_chunk(&local_coordinate)
+            && self.voxels[Self::get_index(&local_coordinate)].voxel_type != new_type
+        {
             self.voxels[Self::get_index(&local_coordinate)].voxel_type = new_type;
             self.update_chunk(world);
             self.update_surrounding_voxels(world, local_coordinate);
@@ -162,21 +185,12 @@ impl Chunk {
 #[derive(Component)]
 pub struct ChunkEntity(pub IVec3);
 
-pub struct ChunkPlugin;
-impl Plugin for ChunkPlugin {
+pub struct ClientChunkPlugin;
+impl Plugin for ClientChunkPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Last,
-            check_loading_world_ended.run_if(in_state(ClientState::LoadingWorld)),
-        )
-        .add_systems(
-            Update,
-            (queue_chunk_generation, process_chunk_generation)
-                .chain()
-                .in_set(TerrainGenSet)
-                .run_if(
-                    in_state(ClientState::LoadingWorld).or_else(in_state(ClientState::Playing)),
-                ),
+            check_loading_world_ended.run_if(in_state(ClientState::JoiningServer)),
         )
         .add_systems(
             Update,
@@ -184,14 +198,33 @@ impl Plugin for ChunkPlugin {
                 .chain()
                 .in_set(ChunkMeshingSet)
                 .run_if(
-                    in_state(ClientState::LoadingWorld).or_else(in_state(ClientState::Playing)),
+                    in_state(ClientState::JoiningServer).or_else(in_state(ClientState::Playing)),
                 ),
         )
         .add_systems(
             Last,
             clear_dirty_chunks.run_if(
-                in_state(ClientState::LoadingWorld).or_else(in_state(ClientState::Playing)),
+                in_state(ClientState::JoiningServer).or_else(in_state(ClientState::Playing)),
             ),
+        );
+    }
+}
+
+pub struct ServerChunkPlugin;
+impl Plugin for ServerChunkPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(
+            Last,
+            check_server_loading_world_ended.run_if(in_state(ServerState::LoadingWorld)),
+        )
+        .add_systems(
+            Update,
+            (queue_chunk_generation, process_chunk_generation)
+                .chain()
+                .in_set(TerrainGenSet)
+                .run_if(
+                    in_state(ServerState::LoadingWorld).or_else(in_state(ServerState::Running)),
+                ),
         );
     }
 }

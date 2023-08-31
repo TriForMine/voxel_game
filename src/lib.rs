@@ -1,6 +1,7 @@
 pub use crate::prelude::*;
 
 mod core;
+mod multiplayer;
 mod prelude;
 mod terrain;
 mod voxel;
@@ -9,6 +10,13 @@ mod voxel;
 pub enum ClientState {
     #[default]
     LoadingTexture,
-    LoadingWorld,
+    JoiningServer,
     Playing,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, States)]
+pub enum ServerState {
+    #[default]
+    LoadingWorld,
+    Running,
 }

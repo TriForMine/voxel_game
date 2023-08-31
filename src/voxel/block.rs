@@ -1,6 +1,7 @@
 use crate::voxel::direction::Direction;
+use serde::{Deserialize, Serialize};
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum BlockType {
     Void,
     Grass,
@@ -8,7 +9,7 @@ pub enum BlockType {
     Stone,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct Block {
     pub(crate) voxel_type: BlockType,
 }

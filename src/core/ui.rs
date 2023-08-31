@@ -109,7 +109,7 @@ impl Plugin for UIPlugin {
                 Update,
                 loading_menu_system.run_if(
                     in_state(ClientState::LoadingTexture)
-                        .or_else(in_state(ClientState::LoadingWorld)),
+                        .or_else(in_state(ClientState::JoiningServer)),
                 ),
             );
     }

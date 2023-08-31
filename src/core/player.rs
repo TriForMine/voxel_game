@@ -1,11 +1,12 @@
 use crate::voxel::block::BlockType;
 use crate::voxel::quad::HALF_SIZE;
 use crate::voxel::world::{GameWorld, World};
-use crate::ClientState;
+use crate::{Channel, ClientMessage, ClientState};
 use bevy::ecs::event::ManualEventReader;
 use bevy::input::mouse::MouseMotion;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, PrimaryWindow};
+use bevy_renet::renet::RenetClient;
 
 pub const PLAYER_HEIGHT: f32 = 1.8;
 pub const CAMERA_HEIGHT: f32 = PLAYER_HEIGHT - 0.3;
@@ -430,6 +431,7 @@ fn player_handle_voxel_raycast(
     player_camera_query: Query<&GlobalTransform, (Without<Player>, With<PlayerCamera>)>,
     game_world: Res<GameWorld>,
     buttons: Res<Input<MouseButton>>,
+    mut client: ResMut<RenetClient>,
 ) {
     if let Ok(window) = primary_window.get_single() {
         if let Ok(mut player) = player_query.get_single_mut() {
@@ -467,12 +469,24 @@ fn player_handle_voxel_raycast(
                                     .write()
                                     .unwrap()
                                     .edit_voxel(&looking_at_pos, BlockType::Void);
+
+                                let message =
+                                    bincode::serialize(&ClientMessage::BreakBlock(looking_at_pos))
+                                        .unwrap();
+                                client.send_message(Channel::Reliable, message);
                             } else if buttons.just_pressed(MouseButton::Right) {
                                 game_world
                                     .world
                                     .write()
                                     .unwrap()
                                     .edit_voxel(&placing_at_pos, BlockType::Stone);
+
+                                let message = bincode::serialize(&ClientMessage::PlaceBlock(
+                                    placing_at_pos,
+                                    BlockType::Stone,
+                                ))
+                                .unwrap();
+                                client.send_message(Channel::Reliable, message);
                             }
                         }
                     }

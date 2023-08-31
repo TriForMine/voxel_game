@@ -3,7 +3,7 @@ use crate::voxel::chunk::{ChunkEntity, SIZE};
 use crate::voxel::mesh_builder::create_chunk_mesh;
 use crate::voxel::texture::ResourcePack;
 use crate::voxel::world::GameWorld;
-use crate::ClientState;
+use crate::{ClientState, ServerState};
 use bevy::asset::{Assets, Handle};
 use bevy::pbr::MaterialMeshBundle;
 use bevy::prelude::*;
@@ -75,6 +75,8 @@ pub fn queue_mesh_tasks(mut commands: Commands, game_world: Res<GameWorld>) {
                     let chunk = chunk_data_map.get(&chunk_coord).unwrap().read().unwrap();
                     create_chunk_mesh(&chunk)
                 })));
+        } else {
+            println!("Chunk {:?} not found", chunk_coord);
         }
     }
 }
@@ -96,12 +98,31 @@ pub fn process_mesh_tasks(
     });
 }
 
-pub fn check_loading_world_ended(
+pub fn check_server_loading_world_ended(
     mesh_tasks: Query<(Entity, &ChunkEntity, &mut ChunkMeshTask)>,
     gen_tasks: Query<(Entity, &ChunkEntity, &mut TerrainGenTask)>,
-    mut next_state: ResMut<NextState<ClientState>>,
+    mut next_state: ResMut<NextState<ServerState>>,
 ) {
     if gen_tasks.is_empty() && mesh_tasks.is_empty() {
+        println!("Server is ready!");
+        next_state.set(ServerState::Running);
+    }
+}
+
+pub fn check_loading_world_ended(
+    client_world: Res<GameWorld>,
+    mut next_state: ResMut<NextState<ClientState>>,
+) {
+    if client_world
+        .world
+        .read()
+        .unwrap()
+        .pending_requested_chunks
+        .read()
+        .unwrap()
+        .len()
+        == 0
+    {
         next_state.set(ClientState::Playing);
     }
 }

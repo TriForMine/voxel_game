@@ -1,7 +1,7 @@
 use crate::voxel::block::{Block, BlockType};
 use crate::voxel::chunk::ChunkEntity;
 use crate::voxel::chunk::{Chunk, HEIGHT, SIZE};
-use crate::ClientState;
+use crate::{Channel, ClientMessage, ClientState, ResMut, ServerState};
 use bevy::app::App;
 use bevy::math::{IVec2, IVec3, Vec3};
 use bevy::prelude::{
@@ -9,6 +9,8 @@ use bevy::prelude::{
     Resource, Transform,
 };
 use bevy::tasks::Task;
+use bevy::utils::FloatOrd;
+use bevy_renet::renet::RenetClient;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock, Weak};
 
@@ -37,6 +39,7 @@ pub struct World {
     pub(crate) chunk_data_map: Arc<RwLock<ChunkDataMap>>,
     pub(crate) chunk_entities: Arc<RwLock<HashMap<IVec3, Entity>>>,
     pub(crate) dirty_chunks: Arc<RwLock<HashSet<IVec3>>>,
+    pub(crate) pending_requested_chunks: Arc<RwLock<HashSet<IVec3>>>,
 }
 
 impl World {
@@ -45,6 +48,9 @@ impl World {
             chunk_data_map: Arc::new(RwLock::new(HashMap::with_capacity(DEFAULT_MAX_CHUNKS))),
             chunk_entities: Arc::new(RwLock::new(HashMap::with_capacity(DEFAULT_MAX_CHUNKS))),
             dirty_chunks: Arc::new(RwLock::new(HashSet::with_capacity(DEFAULT_MAX_CHUNKS))),
+            pending_requested_chunks: Arc::new(RwLock::new(HashSet::with_capacity(
+                DEFAULT_MAX_CHUNKS,
+            ))),
         }
     }
 
@@ -94,6 +100,41 @@ impl World {
                 .unwrap()
                 .edit_voxel(self, local_coord, voxel_type);
         }
+    }
+
+    pub fn get_chunk(&self, chunk_coord: IVec3) -> Option<Arc<RwLock<Chunk>>> {
+        let chunks = self.chunk_data_map.read().unwrap();
+        chunks.get(&chunk_coord).map(|chunk| Arc::clone(chunk))
+    }
+
+    pub fn set_chunk(&self, chunk_coord: IVec3, chunk: Chunk) {
+        let chunk = Arc::new(RwLock::new(chunk));
+
+        let neighbors = self.get_neighbors_chunks(&chunk_coord);
+
+        for i in 0..neighbors.len() {
+            let neighbor = neighbors.get(i).unwrap();
+            if let Some(ref neighbor) = neighbor {
+                chunk.write().unwrap().set_neighbor(i, neighbor.clone());
+
+                let neighbor = neighbor.upgrade().unwrap();
+                let mut neighbor = neighbor.write().unwrap();
+                // i ^ 1 is the opposite direction of i (i.e. 0 ^ 1 = 1, 1 ^ 1 = 0, 2 ^ 1 = 3, 3 ^ 1 = 2)
+                neighbor.set_neighbor(i ^ 1, Arc::downgrade(&chunk));
+
+                self.dirty_chunks.write().unwrap().insert(neighbor.pos);
+            }
+        }
+
+        self.chunk_data_map
+            .write()
+            .unwrap()
+            .insert(chunk_coord, chunk);
+        self.dirty_chunks.write().unwrap().insert(chunk_coord);
+        self.pending_requested_chunks
+            .write()
+            .unwrap()
+            .remove(&chunk_coord);
     }
 
     pub fn check_block_at_coord(&self, global_coord: &IVec3) -> bool {
@@ -212,8 +253,58 @@ impl World {
     }
 }
 
-fn setup_world(mut commands: Commands, game_world: Res<GameWorld>) {
-    let world = &game_world.world;
+fn setup_world(
+    mut commands: Commands,
+    client_world: Res<GameWorld>,
+    mut client: ResMut<RenetClient>,
+) {
+    let world = &client_world.world;
+
+    let mut request = Vec::default();
+    for x in -(WORLD_SIZE - 1)..WORLD_SIZE {
+        for z in -(WORLD_SIZE - 1)..WORLD_SIZE {
+            let chunk_pos = IVec3::new(x, 0, z);
+            request.push(chunk_pos);
+
+            world
+                .read()
+                .unwrap()
+                .chunk_entities
+                .write()
+                .unwrap()
+                .insert(chunk_pos, commands.spawn(ChunkEntity(chunk_pos)).id());
+        }
+    }
+
+    world
+        .read()
+        .unwrap()
+        .pending_requested_chunks
+        .write()
+        .unwrap()
+        .extend(request.iter());
+
+    request.sort_by_key(|pos| FloatOrd(Vec3::distance(Vec3::ZERO, pos.as_vec3())));
+
+    request.iter().for_each(|request| {
+        let message = bincode::serialize(&ClientMessage::RequestChunk(*request)).unwrap();
+        client.send_message(Channel::Reliable, message);
+    });
+
+    commands.spawn(PointLightBundle {
+        point_light: PointLight {
+            intensity: 1000.0,
+            range: 100.0,
+            ..default()
+        },
+        transform: Transform::from_xyz(1.8, 300.0, 1.8).looking_at(Vec3::ZERO, Vec3::Y),
+        ..default()
+    });
+}
+
+fn setup_server_world(mut commands: Commands, server_world: Res<GameWorld>) {
+    println!("Setting up server world");
+    let world = &server_world.world;
 
     for x in -(WORLD_SIZE - 1)..WORLD_SIZE {
         for z in -(WORLD_SIZE - 1)..WORLD_SIZE {
@@ -228,23 +319,21 @@ fn setup_world(mut commands: Commands, game_world: Res<GameWorld>) {
                 .insert(chunk_pos, commands.spawn(ChunkEntity(chunk_pos)).id());
         }
     }
-
-    commands.spawn(PointLightBundle {
-        point_light: PointLight {
-            intensity: 1000.0,
-            range: 100.0,
-            ..default()
-        },
-        transform: Transform::from_xyz(1.8, 300.0, 1.8).looking_at(Vec3::ZERO, Vec3::Y),
-        ..default()
-    });
 }
 
-pub struct WorldPlugin;
-impl Plugin for WorldPlugin {
+pub struct ClientWorldPlugin;
+impl Plugin for ClientWorldPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<GameWorld>()
-            .add_systems(OnEnter(ClientState::LoadingWorld), setup_world);
+            .add_systems(OnEnter(ClientState::JoiningServer), setup_world);
+    }
+}
+
+pub struct ServerWorldPlugin;
+impl Plugin for ServerWorldPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<GameWorld>()
+            .add_systems(OnEnter(ServerState::LoadingWorld), setup_server_world);
     }
 }
 
