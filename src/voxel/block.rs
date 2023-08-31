@@ -1,7 +1,7 @@
 use crate::voxel::direction::Direction;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum VoxelType {
+pub enum BlockType {
     Void,
     Grass,
     Dirt,
@@ -9,43 +9,43 @@ pub enum VoxelType {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct Voxel {
-    pub(crate) voxel_type: VoxelType,
+pub struct Block {
+    pub(crate) voxel_type: BlockType,
 }
 
-impl Default for Voxel {
+impl Default for Block {
     fn default() -> Self {
         Self {
-            voxel_type: VoxelType::Void,
+            voxel_type: BlockType::Void,
         }
     }
 }
 
-impl Voxel {
+impl Block {
     pub fn new_empty() -> Self {
         Self {
-            voxel_type: VoxelType::Void,
+            voxel_type: BlockType::Void,
         }
     }
 
     pub fn is_solid(&self) -> bool {
-        self.voxel_type != VoxelType::Void
+        self.voxel_type != BlockType::Void
     }
 
-    pub fn set_type(&mut self, voxel_type: VoxelType) {
+    pub fn set_type(&mut self, voxel_type: BlockType) {
         self.voxel_type = voxel_type;
     }
 
-    pub fn get_face(voxel_type: &VoxelType, direction: &Direction) -> u16 {
+    pub fn get_face(voxel_type: &BlockType, direction: &Direction) -> u16 {
         match voxel_type {
-            VoxelType::Void => 0,
-            VoxelType::Grass => match direction {
+            BlockType::Void => 0,
+            BlockType::Grass => match direction {
                 Direction::Up => 23,
                 Direction::Down => 9,
                 _ => 10,
             },
-            VoxelType::Dirt => 9,
-            VoxelType::Stone => 50,
+            BlockType::Dirt => 9,
+            BlockType::Stone => 50,
         }
     }
 }

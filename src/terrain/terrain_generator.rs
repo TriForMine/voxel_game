@@ -1,5 +1,5 @@
+use crate::voxel::block::BlockType;
 use crate::voxel::chunk::{Chunk, ChunkData, SIZE};
-use crate::voxel::voxel::VoxelType;
 use bevy::math::IVec3;
 use once_cell::sync::Lazy;
 use std::sync::RwLock;
@@ -40,11 +40,11 @@ impl TerrainGenerator {
                         .get_mut(Chunk::get_index(&IVec3::new(x, y, z)))
                         .unwrap();
                     if y == (height - 1) {
-                        voxel.set_type(VoxelType::Grass);
+                        voxel.set_type(BlockType::Grass);
                     } else if y < height && y > height - 3 {
-                        voxel.set_type(VoxelType::Dirt);
+                        voxel.set_type(BlockType::Dirt);
                     } else if y < height {
-                        voxel.set_type(VoxelType::Stone);
+                        voxel.set_type(BlockType::Stone);
                     }
                 }
             }

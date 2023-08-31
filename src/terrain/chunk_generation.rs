@@ -1,7 +1,7 @@
 use crate::terrain::terrain_generator::TERRAIN_GENERATOR;
 use crate::voxel::chunk::{Chunk, ChunkEntity};
-use crate::GameWorld;
-use bevy::prelude::{Added, Commands, Component, Entity, Query, Res, SystemSet};
+use crate::voxel::world::GameWorld;
+use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, Task};
 use futures_lite::future;
 use std::sync::{Arc, RwLock};
@@ -58,6 +58,15 @@ pub fn process_chunk_generation(
                     let mut neighbor = neighbor.write().unwrap();
                     // i ^ 1 is the opposite direction of i (i.e. 0 ^ 1 = 1, 1 ^ 1 = 0, 2 ^ 1 = 3, 3 ^ 1 = 2)
                     neighbor.set_neighbor(i ^ 1, Arc::downgrade(&chunk));
+
+                    game_world
+                        .world
+                        .read()
+                        .unwrap()
+                        .dirty_chunks
+                        .write()
+                        .unwrap()
+                        .insert(neighbor.pos);
                 }
             }
 

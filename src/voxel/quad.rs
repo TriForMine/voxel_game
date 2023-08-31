@@ -1,6 +1,6 @@
+use crate::voxel::block::{Block, BlockType};
 use crate::voxel::direction::Direction;
 use crate::voxel::texture::{convert_face_id_to_uv, UvCoordinate};
-use crate::voxel::voxel::{Voxel, VoxelType};
 use bevy::math::{IVec3, Vec3};
 
 pub struct Quad {
@@ -12,7 +12,7 @@ pub struct Quad {
 pub const HALF_SIZE: f32 = 0.5f32;
 
 impl Quad {
-    pub fn from_direction(direction: Direction, i_pos: IVec3, voxel_type: VoxelType) -> Self {
+    pub fn from_direction(direction: Direction, i_pos: IVec3, voxel_type: BlockType) -> Self {
         let pos: Vec3 = i_pos.as_vec3();
 
         let corners = match direction {
@@ -54,7 +54,7 @@ impl Quad {
             ],
         };
 
-        let uvs = convert_face_id_to_uv(Voxel::get_face(&voxel_type, &direction));
+        let uvs = convert_face_id_to_uv(Block::get_face(&voxel_type, &direction));
 
         Self {
             corners,

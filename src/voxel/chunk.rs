@@ -1,9 +1,16 @@
-use crate::voxel::voxel::{Voxel, VoxelType};
+use crate::terrain::chunk_generation::TerrainGenSet;
+use crate::voxel::block::{Block, BlockType};
 use crate::voxel::world::World;
 use bevy::math::IVec3;
-use bevy::prelude::Component;
+use bevy::prelude::*;
 use std::sync::{RwLock, Weak};
 
+use crate::terrain::chunk_generation::{process_chunk_generation, queue_chunk_generation};
+use crate::terrain::meshing::{
+    check_loading_world_ended, clear_dirty_chunks, prepare_chunks, process_mesh_tasks,
+    queue_mesh_tasks, ChunkMeshingSet,
+};
+use crate::ClientState;
 use lazy_static::*;
 lazy_static! {
     // when SIZE 16, BIT_SIZE is 4
@@ -16,7 +23,7 @@ lazy_static! {
 pub const SIZE: i32 = 16;
 pub const HEIGHT: i32 = 256;
 
-pub type ChunkData = [Voxel; (SIZE * SIZE * HEIGHT) as usize];
+pub type ChunkData = [Block; (SIZE * SIZE * HEIGHT) as usize];
 
 #[derive(Clone, Debug)]
 pub struct Chunk {
@@ -28,7 +35,7 @@ pub struct Chunk {
 impl Default for Chunk {
     fn default() -> Chunk {
         Chunk {
-            voxels: [Voxel::new_empty(); (SIZE * SIZE * HEIGHT) as usize],
+            voxels: [Block::new_empty(); (SIZE * SIZE * HEIGHT) as usize],
             pos: IVec3::default(),
             neighbors: [Weak::new(), Weak::new(), Weak::new(), Weak::new()],
         }
@@ -53,7 +60,7 @@ impl Chunk {
             && coordinate.z < SIZE
     }
 
-    pub fn get_voxel(&self, coordinate: IVec3) -> Option<Voxel> {
+    pub fn get_voxel(&self, coordinate: IVec3) -> Option<Block> {
         if Self::is_in_chunk(&coordinate) {
             Some(self.voxels[Self::get_index(&coordinate)])
         } else if coordinate.x < 0 {
@@ -85,7 +92,7 @@ impl Chunk {
         }
     }
 
-    pub fn edit_voxel(&mut self, world: &World, local_coordinate: IVec3, new_type: VoxelType) {
+    pub fn edit_voxel(&mut self, world: &World, local_coordinate: IVec3, new_type: BlockType) {
         if Self::is_in_chunk(&local_coordinate) {
             self.voxels[Self::get_index(&local_coordinate)].voxel_type = new_type;
             self.update_chunk(world);
@@ -140,7 +147,7 @@ impl Chunk {
     /// 4: front
     ///
     /// 5: back
-    pub fn get_voxel_neighbors(&self, coordinate: IVec3) -> [Option<Voxel>; 6] {
+    pub fn get_voxel_neighbors(&self, coordinate: IVec3) -> [Option<Block>; 6] {
         let mut neighbors = [None; 6];
         neighbors[0] = self.get_voxel(coordinate + IVec3::new(1, 0, 0));
         neighbors[1] = self.get_voxel(coordinate + IVec3::new(-1, 0, 0));
@@ -154,3 +161,37 @@ impl Chunk {
 
 #[derive(Component)]
 pub struct ChunkEntity(pub IVec3);
+
+pub struct ChunkPlugin;
+impl Plugin for ChunkPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(
+            Last,
+            check_loading_world_ended.run_if(in_state(ClientState::LoadingWorld)),
+        )
+        .add_systems(
+            Update,
+            (queue_chunk_generation, process_chunk_generation)
+                .chain()
+                .in_set(TerrainGenSet)
+                .run_if(
+                    in_state(ClientState::LoadingWorld).or_else(in_state(ClientState::Playing)),
+                ),
+        )
+        .add_systems(
+            Update,
+            (prepare_chunks, queue_mesh_tasks, process_mesh_tasks)
+                .chain()
+                .in_set(ChunkMeshingSet)
+                .run_if(
+                    in_state(ClientState::LoadingWorld).or_else(in_state(ClientState::Playing)),
+                ),
+        )
+        .add_systems(
+            Last,
+            clear_dirty_chunks.run_if(
+                in_state(ClientState::LoadingWorld).or_else(in_state(ClientState::Playing)),
+            ),
+        );
+    }
+}

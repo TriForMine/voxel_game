@@ -1,14 +1,12 @@
-use crate::terrain::terrain::TerrainGenTask;
+use crate::terrain::chunk_generation::TerrainGenTask;
 use crate::voxel::chunk::{ChunkEntity, SIZE};
 use crate::voxel::mesh_builder::create_chunk_mesh;
-use crate::ResourcePack;
-use crate::{AppState, GameWorld};
+use crate::voxel::texture::ResourcePack;
+use crate::voxel::world::GameWorld;
+use crate::ClientState;
 use bevy::asset::{Assets, Handle};
 use bevy::pbr::MaterialMeshBundle;
-use bevy::prelude::{
-    Added, Commands, Component, Entity, Mesh, NextState, Query, Res, ResMut, SystemSet, Transform,
-    Visibility, With,
-};
+use bevy::prelude::*;
 use bevy::render::mesh::PrimitiveTopology;
 use bevy::tasks::{AsyncComputeTaskPool, Task};
 use futures_lite::future;
@@ -101,10 +99,10 @@ pub fn process_mesh_tasks(
 pub fn check_loading_world_ended(
     mesh_tasks: Query<(Entity, &ChunkEntity, &mut ChunkMeshTask)>,
     gen_tasks: Query<(Entity, &ChunkEntity, &mut TerrainGenTask)>,
-    mut next_state: ResMut<NextState<AppState>>,
+    mut next_state: ResMut<NextState<ClientState>>,
 ) {
     if gen_tasks.is_empty() && mesh_tasks.is_empty() {
-        next_state.set(AppState::Playing);
+        next_state.set(ClientState::Playing);
     }
 }
 

@@ -1,7 +1,7 @@
+use crate::voxel::block::BlockType;
 use crate::voxel::quad::HALF_SIZE;
-use crate::voxel::voxel::VoxelType;
-use crate::voxel::world::World;
-use crate::{AppState, GameWorld};
+use crate::voxel::world::{GameWorld, World};
+use crate::ClientState;
 use bevy::ecs::event::ManualEventReader;
 use bevy::input::mouse::MouseMotion;
 use bevy::prelude::*;
@@ -466,13 +466,13 @@ fn player_handle_voxel_raycast(
                                     .world
                                     .write()
                                     .unwrap()
-                                    .edit_voxel(&looking_at_pos, VoxelType::Void);
+                                    .edit_voxel(&looking_at_pos, BlockType::Void);
                             } else if buttons.just_pressed(MouseButton::Right) {
                                 game_world
                                     .world
                                     .write()
                                     .unwrap()
-                                    .edit_voxel(&placing_at_pos, VoxelType::Stone);
+                                    .edit_voxel(&placing_at_pos, BlockType::Stone);
                             }
                         }
                     }
@@ -488,7 +488,7 @@ impl Plugin for PlayerPlugin {
         app.init_resource::<InputState>()
             .init_resource::<MovementSettings>()
             .init_resource::<KeyBindings>()
-            .add_systems(OnEnter(AppState::Playing), setup_player)
+            .add_systems(OnEnter(ClientState::Playing), setup_player)
             .add_systems(
                 Update,
                 (
@@ -499,7 +499,7 @@ impl Plugin for PlayerPlugin {
                     player_handle_voxel_raycast,
                 )
                     .in_set(PlayerSet)
-                    .run_if(in_state(AppState::Playing)),
+                    .run_if(in_state(ClientState::Playing)),
             );
     }
 }

@@ -1,9 +1,9 @@
 use super::chunk::HEIGHT;
 use super::chunk::SIZE;
+use crate::voxel::block::Block;
 use crate::voxel::chunk::Chunk;
 use crate::voxel::direction::Direction;
 use crate::voxel::quad::Quad;
-use crate::voxel::voxel::Voxel;
 use bevy::math::IVec3;
 use bevy::prelude::*;
 use bevy::render::mesh::Indices;
@@ -71,14 +71,14 @@ pub fn create_chunk_mesh(chunk: &Chunk) -> Mesh {
 }
 
 fn process_voxel(
-    voxel: Option<&Voxel>,
+    voxel: Option<&Block>,
     voxel_pos: IVec3,
-    front: Option<&Voxel>,
-    back: Option<&Voxel>,
-    left: Option<&Voxel>,
-    right: Option<&Voxel>,
-    top: Option<&Voxel>,
-    down: Option<&Voxel>,
+    front: Option<&Block>,
+    back: Option<&Block>,
+    left: Option<&Block>,
+    right: Option<&Block>,
+    top: Option<&Block>,
+    down: Option<&Block>,
     quads: &mut Vec<Quad>,
 ) {
     if let Some(voxel) = voxel {
