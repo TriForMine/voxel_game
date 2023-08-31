@@ -185,6 +185,9 @@ impl Chunk {
 #[derive(Component)]
 pub struct ChunkEntity(pub IVec3);
 
+#[derive(Component)]
+pub struct ServerChunkEntity(pub IVec3);
+
 pub struct ClientChunkPlugin;
 impl Plugin for ClientChunkPlugin {
     fn build(&self, app: &mut App) {

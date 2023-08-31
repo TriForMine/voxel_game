@@ -1,3 +1,4 @@
+use crate::chunk::ServerChunkEntity;
 use crate::terrain::chunk_generation::TerrainGenTask;
 use crate::voxel::chunk::{ChunkEntity, SIZE};
 use crate::voxel::mesh_builder::create_chunk_mesh;
@@ -99,11 +100,10 @@ pub fn process_mesh_tasks(
 }
 
 pub fn check_server_loading_world_ended(
-    mesh_tasks: Query<(Entity, &ChunkEntity, &mut ChunkMeshTask)>,
-    gen_tasks: Query<(Entity, &ChunkEntity, &mut TerrainGenTask)>,
+    gen_tasks: Query<(Entity, &ServerChunkEntity, &mut TerrainGenTask)>,
     mut next_state: ResMut<NextState<ServerState>>,
 ) {
-    if gen_tasks.is_empty() && mesh_tasks.is_empty() {
+    if gen_tasks.is_empty() {
         println!("Server is ready!");
         next_state.set(ServerState::Running);
     }

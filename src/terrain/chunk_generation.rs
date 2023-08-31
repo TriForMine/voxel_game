@@ -1,5 +1,5 @@
 use crate::terrain::terrain_generator::TERRAIN_GENERATOR;
-use crate::voxel::chunk::{Chunk, ChunkEntity};
+use crate::voxel::chunk::{Chunk, ServerChunkEntity};
 use crate::voxel::world::GameWorld;
 use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, Task};
@@ -11,7 +11,7 @@ pub struct TerrainGenTask(Task<Arc<RwLock<Chunk>>>);
 
 pub fn queue_chunk_generation(
     mut commands: Commands,
-    new_chunks: Query<(Entity, &ChunkEntity), Added<ChunkEntity>>,
+    new_chunks: Query<(Entity, &ServerChunkEntity), Added<ServerChunkEntity>>,
 ) {
     new_chunks
         .iter()
@@ -39,7 +39,7 @@ pub fn queue_chunk_generation(
 pub fn process_chunk_generation(
     game_world: Res<GameWorld>,
     mut commands: Commands,
-    mut gen_chunks: Query<(Entity, &ChunkEntity, &mut TerrainGenTask)>,
+    mut gen_chunks: Query<(Entity, &ServerChunkEntity, &mut TerrainGenTask)>,
 ) {
     gen_chunks.for_each_mut(|(entity, chunk_entity, mut gen_task)| {
         if let Some(chunk) = future::block_on(future::poll_once(&mut gen_task.0)) {

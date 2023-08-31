@@ -1,3 +1,4 @@
+use crate::chunk::ServerChunkEntity;
 use crate::voxel::block::{Block, BlockType};
 use crate::voxel::chunk::ChunkEntity;
 use crate::voxel::chunk::{Chunk, HEIGHT, SIZE};
@@ -316,7 +317,7 @@ fn setup_server_world(mut commands: Commands, server_world: Res<GameWorld>) {
                 .chunk_entities
                 .write()
                 .unwrap()
-                .insert(chunk_pos, commands.spawn(ChunkEntity(chunk_pos)).id());
+                .insert(chunk_pos, commands.spawn(ServerChunkEntity(chunk_pos)).id());
         }
     }
 }
