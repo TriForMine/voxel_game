@@ -1,4 +1,5 @@
 use crate::block::BlockType;
+use crate::chunk::ServerChunkEntity;
 use crate::multiplayer::PROTOCOL_ID;
 use crate::quad::HALF_SIZE;
 use crate::world::GameWorld;
@@ -11,7 +12,9 @@ use bevy_renet::renet::transport::{NetcodeServerTransport, ServerAuthentication,
 use bevy_renet::renet::{RenetServer, ServerEvent};
 use local_ip_address::local_ip;
 use renet_visualizer::RenetServerVisualizer;
+use std::collections::HashSet;
 use std::net::{SocketAddr, UdpSocket};
+use std::sync::Arc;
 use std::time::SystemTime;
 
 pub fn new_renet_server(singleplayer: bool) -> (RenetServer, NetcodeServerTransport, SocketAddr) {
@@ -142,6 +145,7 @@ pub fn server_handle_messages_system(
     mut pending_messages: ResMut<PendingClientMessage>,
     server_world: Res<GameWorld>,
     mut server: ResMut<RenetServer>,
+    mut commands: Commands,
 ) {
     for (client_id, message) in pending_messages.0.drain(..) {
         match message {
@@ -183,7 +187,27 @@ pub fn server_handle_messages_system(
                         bincode::serialize(&ServerMessage::Chunk(coord, chunk.compress())).unwrap();
                     server.send_message(client_id, Channel::Chunk, message);
                 } else {
-                    println!("Client requested non-existing chunk.");
+                    let world = Arc::clone(&server_world.world);
+                    let world = world.read().unwrap();
+
+                    let mut pending_generating_chunks =
+                        world.pending_generating_chunks.write().unwrap();
+                    let pending_generating_chunk = pending_generating_chunks.get_mut(&coord);
+
+                    if pending_generating_chunk.is_none() {
+                        let mut pending_generating_chunk = HashSet::new();
+                        pending_generating_chunk.insert(client_id);
+
+                        pending_generating_chunks.insert(coord, pending_generating_chunk);
+                    } else if let Some(pending_generating_chunk) = pending_generating_chunk {
+                        pending_generating_chunk.insert(client_id);
+                    }
+
+                    world
+                        .chunk_entities
+                        .write()
+                        .unwrap()
+                        .insert(coord, commands.spawn(ServerChunkEntity(coord)).id());
                 }
             }
         }

@@ -41,6 +41,7 @@ pub struct World {
     pub(crate) chunk_entities: Arc<RwLock<HashMap<IVec3, Entity>>>,
     pub(crate) dirty_chunks: Arc<RwLock<HashSet<IVec3>>>,
     pub(crate) pending_requested_chunks: Arc<RwLock<HashSet<IVec3>>>,
+    pub(crate) pending_generating_chunks: Arc<RwLock<HashMap<IVec3, HashSet<u64>>>>,
     pub(crate) players: Arc<RwLock<HashMap<u64, Entity>>>,
 }
 
@@ -54,6 +55,7 @@ impl World {
                 DEFAULT_MAX_CHUNKS,
             ))),
             players: Arc::new(RwLock::new(HashMap::new())),
+            pending_generating_chunks: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 

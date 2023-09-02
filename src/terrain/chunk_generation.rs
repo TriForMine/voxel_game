@@ -1,8 +1,10 @@
 use crate::terrain::terrain_generator::TERRAIN_GENERATOR;
 use crate::voxel::chunk::{Chunk, ServerChunkEntity};
 use crate::voxel::world::GameWorld;
+use crate::{Channel, ServerMessage};
 use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, Task};
+use bevy_renet::renet::RenetServer;
 use futures_lite::future;
 use std::sync::{Arc, RwLock};
 
@@ -40,6 +42,7 @@ pub fn process_chunk_generation(
     game_world: Res<GameWorld>,
     mut commands: Commands,
     mut gen_chunks: Query<(Entity, &ServerChunkEntity, &mut TerrainGenTask)>,
+    mut server: ResMut<RenetServer>,
 ) {
     gen_chunks.for_each_mut(|(entity, chunk_entity, mut gen_task)| {
         if let Some(chunk) = future::block_on(future::poll_once(&mut gen_task.0)) {
@@ -70,6 +73,26 @@ pub fn process_chunk_generation(
                 }
             }
 
+            let players_waiting_for_chunk = game_world
+                .world
+                .read()
+                .unwrap()
+                .pending_generating_chunks
+                .write()
+                .unwrap()
+                .remove(&chunk_entity.0);
+
+            if let Some(players_waiting_for_chunk) = players_waiting_for_chunk {
+                for client_id in players_waiting_for_chunk.iter() {
+                    let message = bincode::serialize(&ServerMessage::Chunk(
+                        chunk_entity.0,
+                        chunk.read().unwrap().compress(),
+                    ))
+                    .unwrap();
+                    server.send_message(*client_id, Channel::Chunk, message);
+                }
+            }
+
             game_world
                 .world
                 .read()
@@ -78,15 +101,6 @@ pub fn process_chunk_generation(
                 .write()
                 .unwrap()
                 .insert(chunk_entity.0, chunk);
-
-            game_world
-                .world
-                .read()
-                .unwrap()
-                .dirty_chunks
-                .write()
-                .unwrap()
-                .insert(chunk_entity.0);
 
             commands.entity(entity).remove::<TerrainGenTask>();
         }
