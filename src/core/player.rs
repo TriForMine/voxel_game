@@ -362,8 +362,6 @@ fn player_move(
 
             // send only if player moved
             if desired_velocity != Vec3::ZERO {
-                println!("Sending player moved, velocity: {:?}", desired_velocity);
-
                 let message =
                     bincode::serialize(&ClientMessage::PlayerMoved(transform.translation)).unwrap();
                 client.send_message(Channel::Unreliable, message);
