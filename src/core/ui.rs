@@ -9,7 +9,6 @@ use bevy_egui::egui::RichText;
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
 use bevy_renet::renet::transport::NetcodeClientTransport;
 use bevy_renet::renet::RenetClient;
-use local_ip_address::local_ip;
 use renet_visualizer::RenetServerVisualizer;
 use std::net::SocketAddr;
 use std::time::Duration;
@@ -70,7 +69,7 @@ fn main_menu_system(
 
             if ui.button("Create World").clicked() {
                 // Create a server
-                let (server, server_transport) = new_renet_server(1);
+                let (server, server_transport, addr) = new_renet_server(true);
 
                 commands.insert_resource(server);
                 commands.insert_resource(server_transport);
@@ -78,8 +77,7 @@ fn main_menu_system(
 
                 next_server_state.set(ServerState::LoadingWorld);
 
-                let (client, transport) =
-                    new_renet_client(SocketAddr::new(local_ip().unwrap(), 5000));
+                let (client, transport) = new_renet_client(addr);
                 commands.insert_resource(client);
                 commands.insert_resource(transport);
 

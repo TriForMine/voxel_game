@@ -12,7 +12,7 @@ use voxel_game::{
 };
 
 fn main() {
-    let (server, transport) = new_renet_server(64);
+    let (server, transport, _) = new_renet_server(false);
 
     App::new()
         .add_plugins((DefaultPlugins.set(WindowPlugin {

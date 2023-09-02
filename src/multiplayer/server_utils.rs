@@ -14,19 +14,32 @@ use renet_visualizer::RenetServerVisualizer;
 use std::net::{SocketAddr, UdpSocket};
 use std::time::SystemTime;
 
-pub fn new_renet_server(max_clients: usize) -> (RenetServer, NetcodeServerTransport) {
+pub fn new_renet_server(singleplayer: bool) -> (RenetServer, NetcodeServerTransport, SocketAddr) {
     let server = RenetServer::new(connection_config());
 
-    let public_addr = SocketAddr::new(local_ip().unwrap(), 5000);
+    let mut public_addr = SocketAddr::new(local_ip().unwrap(), if singleplayer { 0 } else { 5000 });
+
+    let socket = loop {
+        match UdpSocket::bind(public_addr) {
+            Ok(socket) => break socket,
+            Err(_) => {
+                let port = public_addr.port();
+                let ip = public_addr.ip();
+                println!("Address {}:{} already in use.", ip, port);
+                public_addr = SocketAddr::new(ip, port + 1);
+            }
+        }
+    };
+
+    public_addr.set_port(socket.local_addr().unwrap().port());
 
     println!("Server started on {}", public_addr);
 
-    let socket = UdpSocket::bind(public_addr).unwrap();
     let current_time: std::time::Duration = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap();
     let server_config = ServerConfig {
-        max_clients,
+        max_clients: if singleplayer { 1 } else { 64 },
         protocol_id: PROTOCOL_ID,
         public_addr,
         authentication: ServerAuthentication::Unsecure,
@@ -34,7 +47,7 @@ pub fn new_renet_server(max_clients: usize) -> (RenetServer, NetcodeServerTransp
 
     let transport = NetcodeServerTransport::new(current_time, server_config, socket).unwrap();
 
-    (server, transport)
+    (server, transport, public_addr)
 }
 
 pub fn server_update_system(
