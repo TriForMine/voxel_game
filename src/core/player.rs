@@ -23,6 +23,11 @@ pub struct Player {
     pub placing_at_pos: Option<IVec3>,
 }
 
+#[derive(Component, Default)]
+pub struct OtherPlayer {
+    pub id: u64,
+}
+
 #[derive(Component)]
 pub struct PlayerCamera;
 
@@ -134,6 +139,7 @@ fn player_move(
     key_bindings: Res<KeyBindings>,
     mut query: Query<(&mut Transform, &mut VerticalMomentum), With<Player>>,
     game_world: Res<GameWorld>,
+    mut client: ResMut<RenetClient>,
 ) {
     if let Ok(window) = primary_window.get_single() {
         for (mut transform, mut vertical_momentum) in query.iter_mut() {
@@ -353,6 +359,15 @@ fn player_move(
             }
 
             transform.translation += desired_velocity * time.delta_seconds();
+
+            // send only if player moved
+            if desired_velocity != Vec3::ZERO {
+                println!("Sending player moved, velocity: {:?}", desired_velocity);
+
+                let message =
+                    bincode::serialize(&ClientMessage::PlayerMoved(transform.translation)).unwrap();
+                client.send_message(Channel::Unreliable, message);
+            }
         }
     } else {
         warn!("Primary window not found for `player_move`!");

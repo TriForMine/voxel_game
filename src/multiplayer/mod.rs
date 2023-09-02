@@ -2,7 +2,7 @@ mod client_utils;
 mod message;
 mod server_utils;
 
-use crate::{Entity, Resource, SystemSet};
+use crate::{Entity, Resource, SystemSet, Transform};
 use bevy::prelude::Component;
 use bevy_renet::renet::{ChannelConfig, ConnectionConfig, SendType};
 use bimap::BiMap;
@@ -23,6 +23,7 @@ pub struct HandlingMessagesSet;
 #[derive(Debug, Component)]
 pub struct NetworkPlayer {
     pub id: u64,
+    pub transform: Transform,
 }
 
 #[derive(Debug, Resource, Default)]

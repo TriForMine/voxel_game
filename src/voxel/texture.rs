@@ -79,7 +79,7 @@ fn check_assets_ready(
             });
 
             commands.remove_resource::<TexturePackLoading>();
-            next_state.set(ClientState::JoiningServer);
+            next_state.set(ClientState::MainMenu);
         }
         _ => {
             // NotLoaded/Loading: not fully ready yet

@@ -1,6 +1,6 @@
 use crate::block::BlockType;
 use crate::chunk::CompressedChunk;
-use crate::IVec3;
+use crate::{IVec3, Vec3};
 use bevy::prelude::Resource;
 use serde::{Deserialize, Serialize};
 
@@ -17,6 +17,7 @@ pub enum ClientMessage {
     BreakBlock(IVec3),
     PlaceBlock(IVec3, BlockType),
     RequestChunk(IVec3),
+    PlayerMoved(Vec3),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -24,7 +25,8 @@ pub enum ServerMessage {
     Ping,
     Pong,
     Chunk(IVec3, CompressedChunk),
-    PlayerJoined(u64),
+    PlayerJoined(u64, Vec3),
+    PlayerMoved(u64, Vec3),
     PlayerLeft(u64),
     BlockBroken(IVec3),
     BlockPlaced(IVec3, BlockType),

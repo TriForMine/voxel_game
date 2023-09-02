@@ -1,27 +1,32 @@
 use crate::block::BlockType;
 use crate::multiplayer::PROTOCOL_ID;
+use crate::quad::HALF_SIZE;
 use crate::world::GameWorld;
 use crate::{
-    connection_config, Channel, ClientMessage, Commands, EventReader, Lobby, NetworkPlayer,
-    PendingClientMessage, Res, ResMut, ServerMessage,
+    connection_config, Channel, ClientMessage, Commands, EventReader, IVec2, Lobby, NetworkPlayer,
+    PendingClientMessage, Query, Res, ResMut, ServerMessage, Transform, Vec3,
 };
 use bevy_egui::EguiContexts;
 use bevy_renet::renet::transport::{NetcodeServerTransport, ServerAuthentication, ServerConfig};
 use bevy_renet::renet::{RenetServer, ServerEvent};
+use local_ip_address::local_ip;
 use renet_visualizer::RenetServerVisualizer;
-use std::net::UdpSocket;
+use std::net::{SocketAddr, UdpSocket};
 use std::time::SystemTime;
 
-pub fn new_renet_server() -> (RenetServer, NetcodeServerTransport) {
+pub fn new_renet_server(max_clients: usize) -> (RenetServer, NetcodeServerTransport) {
     let server = RenetServer::new(connection_config());
 
-    let public_addr = "127.0.0.1:5000".parse().unwrap();
+    let public_addr = SocketAddr::new(local_ip().unwrap(), 5000);
+
+    println!("Server started on {}", public_addr);
+
     let socket = UdpSocket::bind(public_addr).unwrap();
     let current_time: std::time::Duration = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap();
     let server_config = ServerConfig {
-        max_clients: 64,
+        max_clients,
         protocol_id: PROTOCOL_ID,
         public_addr,
         authentication: ServerAuthentication::Unsecure,
@@ -38,21 +43,54 @@ pub fn server_update_system(
     mut visualizer: ResMut<RenetServerVisualizer<200>>,
     mut lobby: ResMut<Lobby>,
     mut commands: Commands,
+    game_world: Res<GameWorld>,
+    players: Query<&NetworkPlayer>,
 ) {
     for event in server_events.iter() {
         match event {
             ServerEvent::ClientConnected { client_id } => {
+                let highest_block = game_world
+                    .world
+                    .read()
+                    .unwrap()
+                    .get_highest_block_at_coord(&IVec2::new(0, 0))
+                    .as_vec3();
+
                 println!("Client {} connected.", client_id);
                 visualizer.add_client(*client_id);
 
-                let player = commands.spawn(NetworkPlayer { id: *client_id }).id();
+                let position = Vec3::new(
+                    highest_block.x,
+                    highest_block.y + HALF_SIZE + 2.,
+                    highest_block.z,
+                );
+
+                let player = commands
+                    .spawn(NetworkPlayer {
+                        id: *client_id,
+                        transform: Transform::from_translation(position)
+                            .looking_to(Vec3::Z, Vec3::Y),
+                    })
+                    .id();
 
                 lobby.players.insert(*client_id, player);
 
                 let message = bincode::serialize(&ServerMessage::Ping).unwrap();
                 server.send_message(*client_id, Channel::Reliable, message);
 
-                let message = bincode::serialize(&ServerMessage::PlayerJoined(*client_id)).unwrap();
+                // Send all players to the new player
+                for (id, player) in lobby.players.iter() {
+                    if *id == *client_id {
+                        continue;
+                    }
+                    let position = players.get(*player).unwrap().transform.translation;
+                    let message =
+                        bincode::serialize(&ServerMessage::PlayerJoined(*id, position)).unwrap();
+                    server.send_message(*client_id, Channel::Reliable, message);
+                }
+
+                let message =
+                    bincode::serialize(&ServerMessage::PlayerJoined(*client_id, position)).unwrap();
                 server.broadcast_message_except(*client_id, Channel::Reliable, message);
             }
             ServerEvent::ClientDisconnected { client_id, reason } => {
@@ -77,7 +115,7 @@ pub fn server_receive_system(
     pending_messages.0.clear();
 
     for client_id in server.clients_id() {
-        for channel in [Channel::Reliable, Channel::Chunk] {
+        for channel in [Channel::Reliable, Channel::Unreliable, Channel::Chunk] {
             while let Some(message) = server.receive_message(client_id, channel) {
                 let message: ClientMessage = bincode::deserialize(&message).unwrap();
 
@@ -105,6 +143,11 @@ pub fn server_handle_messages_system(
 
                 let message = bincode::serialize(&ServerMessage::BlockBroken(pos)).unwrap();
                 server.broadcast_message(Channel::Reliable, message);
+            }
+            ClientMessage::PlayerMoved(pos) => {
+                let message =
+                    bincode::serialize(&ServerMessage::PlayerMoved(client_id, pos)).unwrap();
+                server.broadcast_message_except(client_id, Channel::Unreliable, message);
             }
             ClientMessage::PlaceBlock(pos, block_type) => {
                 server_world

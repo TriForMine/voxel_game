@@ -41,6 +41,7 @@ pub struct World {
     pub(crate) chunk_entities: Arc<RwLock<HashMap<IVec3, Entity>>>,
     pub(crate) dirty_chunks: Arc<RwLock<HashSet<IVec3>>>,
     pub(crate) pending_requested_chunks: Arc<RwLock<HashSet<IVec3>>>,
+    pub(crate) players: Arc<RwLock<HashMap<u64, Entity>>>,
 }
 
 impl World {
@@ -52,6 +53,7 @@ impl World {
             pending_requested_chunks: Arc::new(RwLock::new(HashSet::with_capacity(
                 DEFAULT_MAX_CHUNKS,
             ))),
+            players: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -326,7 +328,7 @@ pub struct ClientWorldPlugin;
 impl Plugin for ClientWorldPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<GameWorld>()
-            .add_systems(OnEnter(ClientState::JoiningServer), setup_world);
+            .add_systems(OnEnter(ClientState::LoadingWorld), setup_world);
     }
 }
 

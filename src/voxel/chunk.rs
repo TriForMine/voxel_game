@@ -193,7 +193,7 @@ impl Plugin for ClientChunkPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Last,
-            check_loading_world_ended.run_if(in_state(ClientState::JoiningServer)),
+            check_loading_world_ended.run_if(in_state(ClientState::LoadingWorld)),
         )
         .add_systems(
             Update,
@@ -201,13 +201,13 @@ impl Plugin for ClientChunkPlugin {
                 .chain()
                 .in_set(ChunkMeshingSet)
                 .run_if(
-                    in_state(ClientState::JoiningServer).or_else(in_state(ClientState::Playing)),
+                    in_state(ClientState::LoadingWorld).or_else(in_state(ClientState::Playing)),
                 ),
         )
         .add_systems(
             Last,
             clear_dirty_chunks.run_if(
-                in_state(ClientState::JoiningServer).or_else(in_state(ClientState::Playing)),
+                in_state(ClientState::LoadingWorld).or_else(in_state(ClientState::Playing)),
             ),
         );
     }

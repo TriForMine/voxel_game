@@ -12,7 +12,7 @@ use voxel_game::{
 };
 
 fn main() {
-    let (server, transport) = new_renet_server();
+    let (server, transport) = new_renet_server(64);
 
     App::new()
         .add_plugins((DefaultPlugins.set(WindowPlugin {
@@ -37,6 +37,7 @@ fn main() {
         .init_resource::<GameWorld>()
         .init_resource::<PendingClientMessage>()
         .insert_resource(RenetServerVisualizer::<200>::default())
+        .add_systems(Startup, force_server_state_to_running_system)
         .configure_set(PreUpdate, ReadMessagesSet)
         .add_systems(PreUpdate, server_receive_system.in_set(ReadMessagesSet))
         .add_systems(
@@ -49,4 +50,8 @@ fn main() {
                 .run_if(in_state(ServerState::Running)),
         )
         .run();
+}
+
+fn force_server_state_to_running_system(mut next_state: ResMut<NextState<ServerState>>) {
+    next_state.set(ServerState::LoadingWorld);
 }
