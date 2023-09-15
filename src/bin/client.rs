@@ -3,9 +3,9 @@
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::prelude::*;
 use bevy_discord_presence::{ActivityState, RPCConfig, RPCPlugin};
-use discord_presence::models::{ActivityAssets};
 use bevy_renet::transport::{NetcodeClientPlugin, NetcodeServerPlugin};
 use bevy_renet::{RenetClientPlugin, RenetServerPlugin};
+use discord_presence::models::ActivityAssets;
 use voxel_game::chunk::{ClientChunkPlugin, ServerChunkPlugin};
 use voxel_game::chunk_generation::TerrainGenSet;
 use voxel_game::meshing::ChunkMeshingSet;
@@ -13,7 +13,11 @@ use voxel_game::player::{PlayerPlugin, PlayerSet};
 use voxel_game::texture::TexturePlugin;
 use voxel_game::ui::{MainMenuState, UIPlugin};
 use voxel_game::world::{ClientWorldPlugin, ServerWorldPlugin};
-use voxel_game::{client_handle_messages, client_receive_system, server_handle_messages_system, server_receive_system, server_update_system, ClientState, HandlingMessagesSet, Lobby, PendingClientMessage, PendingServerMessage, ReadMessagesSet, ServerState, ClientMode};
+use voxel_game::{
+    client_handle_messages, client_receive_system, server_handle_messages_system,
+    server_receive_system, server_update_system, ClientMode, ClientState, HandlingMessagesSet,
+    Lobby, PendingClientMessage, PendingServerMessage, ReadMessagesSet, ServerState,
+};
 
 fn main() {
     App::new()
@@ -43,7 +47,7 @@ fn main() {
                     app_id: 1147947143458472026,
                     show_time: true,
                 },
-            }
+            },
         ))
         .add_state::<ClientState>()
         .add_state::<ClientMode>()
@@ -85,10 +89,7 @@ fn main() {
             (server_update_system, server_handle_messages_system)
                 .run_if(in_state(ServerState::Running)),
         )
-        .add_systems(
-            PreUpdate,
-            update_presence
-        )
+        .add_systems(PreUpdate, update_presence)
         .run();
 }
 
@@ -105,7 +106,7 @@ fn update_presence(
             large_image: Some("logo".to_string()),
             large_text: Some("Voxel Game".to_string()),
             small_image: Some("triformine".to_string()),
-            small_text: Some("Ceated by @TriForMine".to_string())
+            small_text: Some("Ceated by @TriForMine".to_string()),
         });
 
         match app_state.get() {

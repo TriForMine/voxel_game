@@ -1,6 +1,6 @@
 use crate::core::player::{Player, PlayerCamera};
 use crate::voxel::world::World;
-use crate::{new_renet_client, new_renet_server, ClientState, ServerState, ClientMode};
+use crate::{new_renet_client, new_renet_server, ClientMode, ClientState, ServerState};
 use bevy::app::{App, AppExit};
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::math::IVec3;
