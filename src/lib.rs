@@ -17,6 +17,14 @@ pub enum ClientState {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, States)]
+pub enum ClientMode {
+    #[default]
+    SinglePlayer,
+    Lan,
+    Online,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, States)]
 pub enum ServerState {
     #[default]
     MainMenu,

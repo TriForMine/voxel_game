@@ -25,6 +25,9 @@ bimap = "0.6.3"
 lz4 = "1.24.0"
 serde-big-array = "0.5.1"
 local-ip-address = "0.5.4"
+bevy-discord-presence = "0.4.3"
+discord-presence = "0.5.18"
+
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]

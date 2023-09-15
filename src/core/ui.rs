@@ -1,6 +1,6 @@
 use crate::core::player::{Player, PlayerCamera};
 use crate::voxel::world::World;
-use crate::{new_renet_client, new_renet_server, ClientState, ServerState};
+use crate::{new_renet_client, new_renet_server, ClientState, ServerState, ClientMode};
 use bevy::app::{App, AppExit};
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::math::IVec3;
@@ -38,6 +38,7 @@ fn main_menu_system(
     mut commands: Commands,
     mut contexts: EguiContexts,
     state: Res<State<MainMenuState>>,
+    mut next_client_mode_state: ResMut<NextState<ClientMode>>,
     mut next_main_menu_state: ResMut<NextState<MainMenuState>>,
     mut next_server_state: ResMut<NextState<ServerState>>,
     mut next_client_state: ResMut<NextState<ClientState>>,
@@ -83,6 +84,7 @@ fn main_menu_system(
 
                 next_client_state.set(ClientState::JoiningServer);
                 next_main_menu_state.set(MainMenuState::MainMenu);
+                next_client_mode_state.set(ClientMode::SinglePlayer);
             }
 
             if ui.button("Back").clicked() {
@@ -114,6 +116,7 @@ fn main_menu_system(
 
                 next_client_state.set(ClientState::JoiningServer);
                 next_main_menu_state.set(MainMenuState::MainMenu);
+                next_client_mode_state.set(ClientMode::Online);
             }
 
             if ui.button("Back").clicked() {
