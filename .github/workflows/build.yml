@@ -8,29 +8,20 @@ on:
     - cron: '00 01 * * *'
 
 jobs:
-  check:
-    name: Check
+  clippy_check:
     runs-on: ubuntu-latest
     steps:
       - name: setup libasound2-dev and libudev-dev on ubuntu
         run: sudo apt install libasound2-dev libudev-dev
-    
-      - name: Checkout sources
-        uses: actions/checkout@v2
-
-      - name: Install nightly toolchain
-        uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
         with:
-          profile: minimal
           toolchain: nightly
+          components: clippy
           override: true
-
-      - uses: Swatinem/rust-cache@v1
-
-      - name: Run cargo check
-        uses: actions-rs/cargo@v1
+      - uses: actions-rs/clippy-check@v1
         with:
-          command: check
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   test:
     name: Test Suite
