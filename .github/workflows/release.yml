@@ -8,6 +8,7 @@ on:
 env:
   # update with the name of the main binary
   binary: client
+  server_binary: server
   add_binaries_to_github_release: true
   #itch_target: <itch.io-username>/<game-name>
 
@@ -33,30 +34,53 @@ jobs:
         run: |
           cargo build --release --target x86_64-unknown-linux-gnu
 
-      - name: Prepare package
+      - name: Prepare client package
         run: |
           mkdir linux
           cp target/x86_64-unknown-linux-gnu/release/${{ env.binary }} linux/
           cp -r assets linux/
 
-      - name: Package as a zip
+      - name: Package client as a zip
         working-directory: ./linux
         run: |
           zip --recurse-paths ../${{ env.binary }}.zip .
 
+      - name: Prepare server package
+        run: |
+          mkdir linux_server
+          cp target/x86_64-unknown-linux-gnu/release/${{ env.server_binary }} linux_server/
+          cp -r assets linux_server/
+
+      - name: Package client as a zip
+        working-directory: ./linux_server
+        run: |
+          zip --recurse-paths ../${{ env.server_binary }}.zip .
+
       - name: Upload binaries to artifacts
         uses: actions/upload-artifact@v3
         with:
-          path: ${{ env.binary }}.zip
+          path: |
+            ${{ env.binary }}.zip
+            ${{ env.server_binary }}.zip
           name: linux
 
-      - name: Upload binaries to release
+      - name: Upload client binaries to release
         if: ${{ env.add_binaries_to_github_release == 'true' }}
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: ${{ env.binary }}.zip
-          asset_name: ${{ env.binary }}-linux-${{ steps.get_version.outputs.tag }}.zip
+          asset_name: ${{ env.binary }}-linux-${{ steps.get_version.outputs.tag }}-client.zip
+          tag: ${{ github.ref }}
+          overwrite: true
+
+      - name: Upload server binaries to release
+        if: ${{ env.add_binaries_to_github_release == 'true' }}
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ${{ env.server_binary }}.zip
+          asset_name: ${{ env.server_binary }}-linux-${{ steps.get_version.outputs.tag }}-server.zip
           tag: ${{ github.ref }}
           overwrite: true
 
