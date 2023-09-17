@@ -12,6 +12,9 @@ jobs:
     name: Check
     runs-on: ubuntu-latest
     steps:
+      - name: setup libasound2-dev and libudev-dev on ubuntu
+        run: sudo apt install libasound2-dev libudev-dev
+    
       - name: Checkout sources
         uses: actions/checkout@v2
 
@@ -59,6 +62,9 @@ jobs:
     name: Lints
     runs-on: ubuntu-latest
     steps:
+      - name: setup libasound2-dev and libudev-dev on ubuntu
+        run: sudo apt install libasound2-dev libudev-dev
+    
       - name: Checkout sources
         uses: actions/checkout@v2
         with:
