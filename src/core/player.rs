@@ -2,11 +2,12 @@ use crate::voxel::block::BlockType;
 use crate::voxel::quad::HALF_SIZE;
 use crate::voxel::world::{GameWorld, World};
 use crate::{Channel, ClientMessage, ClientState};
-use bevy::ecs::event::ManualEventReader;
+use bevy::ecs::event::EventCursor;
 use bevy::input::mouse::MouseMotion;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, PrimaryWindow};
 use bevy_renet::renet::RenetClient;
+use bincode::config;
 
 pub const PLAYER_HEIGHT: f32 = 1.8;
 pub const CAMERA_HEIGHT: f32 = PLAYER_HEIGHT - 0.3;
@@ -55,7 +56,7 @@ impl Default for MovementSettings {
 
 #[derive(Resource, Default)]
 struct InputState {
-    reader_motion: ManualEventReader<MouseMotion>,
+    reader_motion: EventCursor<MouseMotion>,
 }
 
 #[derive(Resource)]
@@ -71,10 +72,10 @@ pub struct KeyBindings {
 impl Default for KeyBindings {
     fn default() -> Self {
         Self {
-            move_forward: KeyCode::Z,
-            move_backward: KeyCode::S,
-            move_left: KeyCode::Q,
-            move_right: KeyCode::D,
+            move_forward: KeyCode::KeyW,
+            move_backward: KeyCode::KeyS,
+            move_left: KeyCode::KeyA,
+            move_right: KeyCode::KeyD,
             jump: KeyCode::Space,
             toggle_grab_cursor: KeyCode::Escape,
         }
@@ -82,14 +83,14 @@ impl Default for KeyBindings {
 }
 
 fn toggle_grab_cursor(window: &mut Window) {
-    match window.cursor.grab_mode {
+    match window.cursor_options.grab_mode {
         CursorGrabMode::None => {
-            window.cursor.grab_mode = CursorGrabMode::Confined;
-            window.cursor.visible = false;
+            window.cursor_options.grab_mode = CursorGrabMode::Confined;
+            window.cursor_options.visible = false;
         }
         _ => {
-            window.cursor.grab_mode = CursorGrabMode::None;
-            window.cursor.visible = true;
+            window.cursor_options.grab_mode = CursorGrabMode::None;
+            window.cursor_options.visible = true;
         }
     }
 }
@@ -105,34 +106,33 @@ fn setup_player(mut commands: Commands, game_world: Res<GameWorld>) {
     commands
         .spawn((
             Player::default(),
-            TransformBundle::from(
-                Transform::from_xyz(
-                    highest_block.x,
-                    highest_block.y + HALF_SIZE + 2.,
-                    highest_block.z,
-                )
+            Transform::from_xyz(
+                highest_block.x,
+                highest_block.y + HALF_SIZE + 2.,
+                highest_block.z,
+            )
                 .looking_to(Vec3::Z, Vec3::Y),
-            ),
             VerticalMomentum(0.),
         ))
         .with_children(|parent| {
             parent.spawn((
-                Camera3dBundle {
-                    transform: Transform::from_xyz(0., CAMERA_HEIGHT, 0.)
-                        .looking_to(Vec3::Z, Vec3::Y),
-                    projection: Projection::Perspective(PerspectiveProjection {
-                        fov: 70.,
-                        ..default()
-                    }),
+                Camera3d {
                     ..default()
                 },
+                Msaa::Off,
+                Transform::from_xyz(0., CAMERA_HEIGHT, 0.)
+                    .looking_to(Vec3::Z, Vec3::Y),
+                Projection::Perspective(PerspectiveProjection {
+                    fov: 70.,
+                    ..default()
+                }),
                 PlayerCamera,
             ));
         });
 }
 
 fn player_move(
-    keys: Res<Input<KeyCode>>,
+    keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
     primary_window: Query<&Window, With<PrimaryWindow>>,
     settings: Res<MovementSettings>,
@@ -154,44 +154,44 @@ fn player_move(
                     .check_block_at_coord(&World::coord_to_world(
                         transform.translation
                             - Vec3::new(
-                                -PLAYER_WIDTH,
-                                settings.gravity * time.delta_seconds(),
-                                -PLAYER_WIDTH,
-                            ),
+                            -PLAYER_WIDTH,
+                            settings.gravity * time.delta_secs(),
+                            -PLAYER_WIDTH,
+                        ),
                     ))
                     || game_world.world.read().unwrap().check_block_at_coord(
-                        &World::coord_to_world(
-                            transform.translation
-                                - Vec3::new(
-                                    PLAYER_WIDTH,
-                                    settings.gravity * time.delta_seconds(),
-                                    -PLAYER_WIDTH,
-                                ),
+                    &World::coord_to_world(
+                        transform.translation
+                            - Vec3::new(
+                            PLAYER_WIDTH,
+                            settings.gravity * time.delta_secs(),
+                            -PLAYER_WIDTH,
                         ),
-                    )
+                    ),
+                )
                     || game_world.world.read().unwrap().check_block_at_coord(
-                        &World::coord_to_world(
-                            transform.translation
-                                - Vec3::new(
-                                    PLAYER_WIDTH,
-                                    settings.gravity * time.delta_seconds(),
-                                    PLAYER_WIDTH,
-                                ),
+                    &World::coord_to_world(
+                        transform.translation
+                            - Vec3::new(
+                            PLAYER_WIDTH,
+                            settings.gravity * time.delta_secs(),
+                            PLAYER_WIDTH,
                         ),
-                    )
+                    ),
+                )
                     || game_world.world.read().unwrap().check_block_at_coord(
-                        &World::coord_to_world(
-                            transform.translation
-                                - Vec3::new(
-                                    PLAYER_WIDTH,
-                                    settings.gravity * time.delta_seconds(),
-                                    -PLAYER_WIDTH,
-                                ),
+                    &World::coord_to_world(
+                        transform.translation
+                            - Vec3::new(
+                            PLAYER_WIDTH,
+                            settings.gravity * time.delta_secs(),
+                            -PLAYER_WIDTH,
                         ),
-                    );
+                    ),
+                );
 
             for key in keys.get_pressed() {
-                match window.cursor.grab_mode {
+                match window.cursor_options.grab_mode {
                     CursorGrabMode::None => (),
                     _ => {
                         let key = *key;
@@ -209,7 +209,7 @@ fn player_move(
             }
 
             for key in keys.get_just_pressed() {
-                match window.cursor.grab_mode {
+                match window.cursor_options.grab_mode {
                     CursorGrabMode::None => (),
                     _ => {
                         let key = *key;
@@ -222,8 +222,8 @@ fn player_move(
 
             if vertical_momentum.0 > -settings.gravity {
                 vertical_momentum.0 = (vertical_momentum.0
-                    - settings.gravity * time.delta_seconds())
-                .max(-settings.gravity);
+                    - settings.gravity * time.delta_secs())
+                    .max(-settings.gravity);
             }
 
             desired_velocity.y += vertical_momentum.0;
@@ -235,17 +235,17 @@ fn player_move(
             // Check front
             if desired_velocity.z > 0.
                 && (game_world
-                    .world
-                    .read()
-                    .unwrap()
-                    .check_block_at_coord(&World::coord_to_world(
-                        transform.translation + Vec3::new(0., 0., PLAYER_WIDTH),
-                    ))
-                    || game_world.world.read().unwrap().check_block_at_coord(
-                        &World::coord_to_world(
-                            transform.translation + Vec3::new(0., 1., PLAYER_WIDTH),
-                        ),
-                    ))
+                .world
+                .read()
+                .unwrap()
+                .check_block_at_coord(&World::coord_to_world(
+                    transform.translation + Vec3::new(0., 0., PLAYER_WIDTH),
+                ))
+                || game_world.world.read().unwrap().check_block_at_coord(
+                &World::coord_to_world(
+                    transform.translation + Vec3::new(0., 1., PLAYER_WIDTH),
+                ),
+            ))
             {
                 desired_velocity.z = 0.;
             }
@@ -253,17 +253,17 @@ fn player_move(
             // Check back
             if desired_velocity.z < 0.
                 && (game_world
-                    .world
-                    .read()
-                    .unwrap()
-                    .check_block_at_coord(&World::coord_to_world(
-                        transform.translation + Vec3::new(0., 0., -PLAYER_WIDTH),
-                    ))
-                    || game_world.world.read().unwrap().check_block_at_coord(
-                        &World::coord_to_world(
-                            transform.translation + Vec3::new(0., 1., -PLAYER_WIDTH),
-                        ),
-                    ))
+                .world
+                .read()
+                .unwrap()
+                .check_block_at_coord(&World::coord_to_world(
+                    transform.translation + Vec3::new(0., 0., -PLAYER_WIDTH),
+                ))
+                || game_world.world.read().unwrap().check_block_at_coord(
+                &World::coord_to_world(
+                    transform.translation + Vec3::new(0., 1., -PLAYER_WIDTH),
+                ),
+            ))
             {
                 desired_velocity.z = 0.;
             }
@@ -271,17 +271,17 @@ fn player_move(
             // Check right
             if desired_velocity.x > 0.
                 && (game_world
-                    .world
-                    .read()
-                    .unwrap()
-                    .check_block_at_coord(&World::coord_to_world(
-                        transform.translation + Vec3::new(PLAYER_WIDTH, 0., 0.),
-                    ))
-                    || game_world.world.read().unwrap().check_block_at_coord(
-                        &World::coord_to_world(
-                            transform.translation + Vec3::new(PLAYER_WIDTH, 1., 0.),
-                        ),
-                    ))
+                .world
+                .read()
+                .unwrap()
+                .check_block_at_coord(&World::coord_to_world(
+                    transform.translation + Vec3::new(PLAYER_WIDTH, 0., 0.),
+                ))
+                || game_world.world.read().unwrap().check_block_at_coord(
+                &World::coord_to_world(
+                    transform.translation + Vec3::new(PLAYER_WIDTH, 1., 0.),
+                ),
+            ))
             {
                 desired_velocity.x = 0.;
             }
@@ -289,17 +289,17 @@ fn player_move(
             // Check left
             if desired_velocity.x < 0.
                 && (game_world
-                    .world
-                    .read()
-                    .unwrap()
-                    .check_block_at_coord(&World::coord_to_world(
-                        transform.translation + Vec3::new(-PLAYER_WIDTH, 0., 0.),
-                    ))
-                    || game_world.world.read().unwrap().check_block_at_coord(
-                        &World::coord_to_world(
-                            transform.translation + Vec3::new(-PLAYER_WIDTH, 1., 0.),
-                        ),
-                    ))
+                .world
+                .read()
+                .unwrap()
+                .check_block_at_coord(&World::coord_to_world(
+                    transform.translation + Vec3::new(-PLAYER_WIDTH, 0., 0.),
+                ))
+                || game_world.world.read().unwrap().check_block_at_coord(
+                &World::coord_to_world(
+                    transform.translation + Vec3::new(-PLAYER_WIDTH, 1., 0.),
+                ),
+            ))
             {
                 desired_velocity.x = 0.;
             }
@@ -307,63 +307,63 @@ fn player_move(
             // Check top
             if desired_velocity.y > 0.
                 && game_world
-                    .world
-                    .read()
-                    .unwrap()
-                    .check_block_at_coord(&World::coord_to_world(
-                        transform.translation
-                            + Vec3::new(
-                                -PLAYER_WIDTH,
-                                PLAYER_HEIGHT + settings.jump_height * time.delta_seconds(),
-                                -PLAYER_WIDTH,
-                            ),
-                    ))
+                .world
+                .read()
+                .unwrap()
+                .check_block_at_coord(&World::coord_to_world(
+                    transform.translation
+                        + Vec3::new(
+                        -PLAYER_WIDTH,
+                        PLAYER_HEIGHT + settings.jump_height * time.delta_secs(),
+                        -PLAYER_WIDTH,
+                    ),
+                ))
                 || game_world
-                    .world
-                    .read()
-                    .unwrap()
-                    .check_block_at_coord(&World::coord_to_world(
-                        transform.translation
-                            + Vec3::new(
-                                PLAYER_WIDTH,
-                                PLAYER_HEIGHT + settings.jump_height * time.delta_seconds(),
-                                -PLAYER_WIDTH,
-                            ),
-                    ))
+                .world
+                .read()
+                .unwrap()
+                .check_block_at_coord(&World::coord_to_world(
+                    transform.translation
+                        + Vec3::new(
+                        PLAYER_WIDTH,
+                        PLAYER_HEIGHT + settings.jump_height * time.delta_secs(),
+                        -PLAYER_WIDTH,
+                    ),
+                ))
                 || game_world
-                    .world
-                    .read()
-                    .unwrap()
-                    .check_block_at_coord(&World::coord_to_world(
-                        transform.translation
-                            + Vec3::new(
-                                PLAYER_WIDTH,
-                                PLAYER_HEIGHT + settings.jump_height * time.delta_seconds(),
-                                PLAYER_WIDTH,
-                            ),
-                    ))
+                .world
+                .read()
+                .unwrap()
+                .check_block_at_coord(&World::coord_to_world(
+                    transform.translation
+                        + Vec3::new(
+                        PLAYER_WIDTH,
+                        PLAYER_HEIGHT + settings.jump_height * time.delta_secs(),
+                        PLAYER_WIDTH,
+                    ),
+                ))
                 || game_world
-                    .world
-                    .read()
-                    .unwrap()
-                    .check_block_at_coord(&World::coord_to_world(
-                        transform.translation
-                            + Vec3::new(
-                                PLAYER_WIDTH,
-                                PLAYER_HEIGHT + settings.jump_height * time.delta_seconds(),
-                                -PLAYER_WIDTH,
-                            ),
-                    ))
+                .world
+                .read()
+                .unwrap()
+                .check_block_at_coord(&World::coord_to_world(
+                    transform.translation
+                        + Vec3::new(
+                        PLAYER_WIDTH,
+                        PLAYER_HEIGHT + settings.jump_height * time.delta_secs(),
+                        -PLAYER_WIDTH,
+                    ),
+                ))
             {
                 desired_velocity.y = 0.;
             }
 
-            transform.translation += desired_velocity * time.delta_seconds();
+            transform.translation += desired_velocity * time.delta_secs();
 
             // send only if player moved
             if desired_velocity != Vec3::ZERO {
                 let message =
-                    bincode::serialize(&ClientMessage::PlayerMoved(transform.translation)).unwrap();
+                    bincode::serde::encode_to_vec(&ClientMessage::PlayerMoved(transform.translation), config::standard()).unwrap();
                 client.send_message(Channel::Unreliable, message);
             }
         }
@@ -382,12 +382,12 @@ fn player_look(
 ) {
     if let Ok(window) = primary_window.get_single() {
         for (parent, mut transform) in query.iter_mut() {
-            for ev in state.reader_motion.iter(&motion) {
+            for ev in state.reader_motion.read(&motion) {
                 let mut parent_transform = parent_transform_query.get_mut(parent.get()).unwrap();
 
                 let (_, mut pitch, _) = transform.rotation.to_euler(EulerRot::YXZ);
                 let (mut yaw, _, _) = parent_transform.rotation.to_euler(EulerRot::YXZ);
-                match window.cursor.grab_mode {
+                match window.cursor_options.grab_mode {
                     CursorGrabMode::None => (),
                     _ => {
                         // Using smallest of height or width ensures equal vertical and horizontal sensitivity
@@ -410,7 +410,7 @@ fn player_look(
 }
 
 fn cursor_grab(
-    keys: Res<Input<KeyCode>>,
+    keys: Res<ButtonInput<KeyCode>>,
     key_bindings: Res<KeyBindings>,
     mut primary_window: Query<&mut Window, With<PrimaryWindow>>,
 ) {
@@ -443,7 +443,7 @@ fn player_handle_voxel_raycast(
     primary_window: Query<&Window, With<PrimaryWindow>>,
     player_camera_query: Query<&GlobalTransform, (Without<Player>, With<PlayerCamera>)>,
     game_world: Res<GameWorld>,
-    buttons: Res<Input<MouseButton>>,
+    buttons: Res<ButtonInput<MouseButton>>,
     mut client: ResMut<RenetClient>,
 ) {
     if let Ok(window) = primary_window.get_single() {
@@ -456,7 +456,7 @@ fn player_handle_voxel_raycast(
 
             let raycast = game_world.world.read().unwrap().ray_casting_voxel(
                 player_camera.translation(),
-                player_camera.forward(),
+                player_camera.forward().as_vec3(),
                 RAY_CASTING_DISTANCE,
                 RAY_CASTING_STEP,
             );
@@ -473,7 +473,7 @@ fn player_handle_voxel_raycast(
 
             if let Some(looking_at_pos) = looking_at_pos {
                 if let Some(placing_at_pos) = placing_at_pos {
-                    match window.cursor.grab_mode {
+                    match window.cursor_options.grab_mode {
                         CursorGrabMode::None => (),
                         _ => {
                             if buttons.just_pressed(MouseButton::Left) {
@@ -484,7 +484,7 @@ fn player_handle_voxel_raycast(
                                     .edit_voxel(&looking_at_pos, BlockType::Void);
 
                                 let message =
-                                    bincode::serialize(&ClientMessage::BreakBlock(looking_at_pos))
+                                    bincode::serde::encode_to_vec(&ClientMessage::BreakBlock(looking_at_pos), config::standard())
                                         .unwrap();
                                 client.send_message(Channel::Reliable, message);
                             } else if buttons.just_pressed(MouseButton::Right) {
@@ -494,11 +494,11 @@ fn player_handle_voxel_raycast(
                                     .unwrap()
                                     .edit_voxel(&placing_at_pos, BlockType::Stone);
 
-                                let message = bincode::serialize(&ClientMessage::PlaceBlock(
+                                let message = bincode::serde::encode_to_vec(&ClientMessage::PlaceBlock(
                                     placing_at_pos,
                                     BlockType::Stone,
-                                ))
-                                .unwrap();
+                                ), config::standard())
+                                    .unwrap();
                                 client.send_message(Channel::Reliable, message);
                             }
                         }

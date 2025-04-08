@@ -5,6 +5,7 @@ mod multiplayer;
 mod prelude;
 mod terrain;
 mod voxel;
+mod discord_presence;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, States)]
 pub enum ClientState {

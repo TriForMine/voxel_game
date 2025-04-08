@@ -1,7 +1,7 @@
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::prelude::*;
 use bevy_egui::EguiPlugin;
-use bevy_renet::transport::NetcodeServerPlugin;
+use bevy_renet::netcode::NetcodeServerPlugin;
 use bevy_renet::RenetServerPlugin;
 use renet_visualizer::RenetServerVisualizer;
 use voxel_game::chunk::ServerChunkPlugin;
@@ -24,7 +24,7 @@ fn main() {
         }),))
         .insert_resource(server)
         .insert_resource(transport)
-        .add_state::<ServerState>()
+        .init_state::<ServerState>()
         .add_plugins((
             RenetServerPlugin,
             NetcodeServerPlugin,
@@ -38,7 +38,7 @@ fn main() {
         .init_resource::<PendingClientMessage>()
         .insert_resource(RenetServerVisualizer::<200>::default())
         .add_systems(Startup, force_server_state_to_running_system)
-        .configure_set(PreUpdate, ReadMessagesSet)
+        .configure_sets(PreUpdate, ReadMessagesSet)
         .add_systems(PreUpdate, server_receive_system.in_set(ReadMessagesSet))
         .add_systems(
             Update,

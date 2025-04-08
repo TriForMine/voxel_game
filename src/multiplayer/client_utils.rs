@@ -3,16 +3,15 @@ use crate::chunk::Chunk;
 use crate::multiplayer::{Channel, ClientMessage, ServerMessage};
 use crate::player::{OtherPlayer, PLAYER_HEIGHT, PLAYER_WIDTH};
 use crate::world::GameWorld;
-use crate::{
-    connection_config, shape, Assets, Color, Commands, Mesh, PbrBundle, PendingServerMessage,
-    Query, StandardMaterial, Transform, Vec3, With, PROTOCOL_ID,
-};
-use bevy::prelude::{Res, ResMut};
-use bevy_renet::renet::transport::{ClientAuthentication, NetcodeClientTransport};
+use crate::{connection_config, Assets, Capsule3d, Color, Commands, Mesh, MeshMaterial3d, PendingServerMessage, Query, StandardMaterial, Transform, Vec3, With, PROTOCOL_ID};
+use bevy::prelude::{Mesh3d, Res, ResMut};
 use bevy_renet::renet::RenetClient;
 use std::net::{SocketAddr, UdpSocket};
 use std::sync::Arc;
 use std::time::SystemTime;
+use bevy_renet::netcode::ClientAuthentication;
+use bincode::config;
+use renet_netcode::NetcodeClientTransport;
 
 pub fn new_renet_client(server_addr: SocketAddr) -> (RenetClient, NetcodeClientTransport) {
     let client = RenetClient::new(connection_config());
@@ -37,11 +36,15 @@ pub fn client_receive_system(
     mut client: ResMut<RenetClient>,
     mut pending_messages: ResMut<PendingServerMessage>,
 ) {
+    if !client.is_connected() {
+        return;
+    }
+
     pending_messages.0.clear();
 
     for channel in [Channel::Reliable, Channel::Unreliable, Channel::Chunk] {
         while let Some(message) = client.receive_message(channel) {
-            let server_message: ServerMessage = bincode::deserialize(&message).unwrap();
+            let server_message: ServerMessage = bincode::serde::decode_from_slice(&message, config::standard()).unwrap().0;
 
             pending_messages.0.push(server_message);
         }
@@ -58,6 +61,10 @@ pub fn client_handle_messages(
     mut commands: Commands,
     mut player_transforms: Query<&mut Transform, With<OtherPlayer>>,
 ) {
+    if !client.is_connected() {
+        return;
+    }
+
     let client_id = transport.client_id();
 
     for server_message in pending_messages.0.drain(..) {
@@ -65,7 +72,7 @@ pub fn client_handle_messages(
             ServerMessage::Ping => {
                 println!("Client {} received ping.", client_id);
 
-                let message = bincode::serialize(&ClientMessage::Pong).unwrap();
+                let message = bincode::serde::encode_to_vec(&ClientMessage::Pong, config::standard()).unwrap();
                 client.send_message(Channel::Reliable, message);
             }
             ServerMessage::Pong => {
@@ -85,25 +92,23 @@ pub fn client_handle_messages(
 
                 let player_entity = commands.spawn((
                     OtherPlayer { id },
-                    PbrBundle {
-                        mesh: meshes.add(
-                            shape::Capsule {
+                    Mesh3d(
+                        meshes.add(
+                            Capsule3d {
                                 radius: PLAYER_WIDTH,
-                                depth: PLAYER_HEIGHT - PLAYER_WIDTH,
+                                half_length: PLAYER_HEIGHT - PLAYER_WIDTH,
                                 ..Default::default()
                             }
-                            .into(),
-                        ),
-                        material: materials.add(StandardMaterial {
-                            base_color: Color::rgb(0.0, 0.0, 1.0),
-                            ..Default::default()
-                        }),
-                        transform: Transform::from_translation(
-                            pos + Vec3::new(0.0, PLAYER_HEIGHT / 2.0, 0.0),
                         )
-                        .looking_to(Vec3::Z, Vec3::Y),
+                    ),
+                    MeshMaterial3d(materials.add(StandardMaterial {
+                        base_color: Color::srgb(0.0, 0.0, 1.0),
                         ..Default::default()
-                    },
+                    })),
+                    Transform::from_translation(
+                        pos + Vec3::new(0.0, PLAYER_HEIGHT / 2.0, 0.0),
+                    )
+                        .looking_to(Vec3::Z, Vec3::Y),
                 ));
 
                 game_world

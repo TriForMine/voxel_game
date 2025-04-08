@@ -1,11 +1,13 @@
-#![windows_subsystem = "windows"]
+#![cfg_attr(
+    all(not(debug_assertions), target_os = "windows"),
+    windows_subsystem = "windows"
+)]
 
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::prelude::*;
-use bevy_discord_presence::{ActivityState, RPCConfig, RPCPlugin};
-use bevy_renet::transport::{NetcodeClientPlugin, NetcodeServerPlugin};
-use bevy_renet::{RenetClientPlugin, RenetServerPlugin};
-use discord_presence::models::ActivityAssets;
+use bevy_renet::{client_connected, RenetClientPlugin, RenetServerPlugin};
+use bevy_renet::netcode::{NetcodeClientPlugin, NetcodeServerPlugin};
+use discord_presence::models::rich_presence::ActivityAssets;
 use voxel_game::chunk::{ClientChunkPlugin, ServerChunkPlugin};
 use voxel_game::chunk_generation::TerrainGenSet;
 use voxel_game::meshing::ChunkMeshingSet;
@@ -13,15 +15,10 @@ use voxel_game::player::{PlayerPlugin, PlayerSet};
 use voxel_game::texture::TexturePlugin;
 use voxel_game::ui::{MainMenuState, UIPlugin};
 use voxel_game::world::{ClientWorldPlugin, ServerWorldPlugin};
-use voxel_game::{
-    client_handle_messages, client_receive_system, server_handle_messages_system,
-    server_receive_system, server_update_system, ClientMode, ClientState, HandlingMessagesSet,
-    Lobby, PendingClientMessage, PendingServerMessage, ReadMessagesSet, ServerState,
-};
+use voxel_game::{client_handle_messages, client_receive_system, server_handle_messages_system, server_receive_system, server_update_system, ActivityState, ClientMode, ClientState, HandlingMessagesSet, Lobby, PendingClientMessage, PendingServerMessage, RPCConfig, RPCPlugin, ReadMessagesSet, ServerState};
 
 fn main() {
     App::new()
-        .insert_resource(Msaa::Off)
         .add_plugins((
             DefaultPlugins.set(WindowPlugin {
                 primary_window: Some(Window {
@@ -49,17 +46,17 @@ fn main() {
                 },
             },
         ))
-        .add_state::<ClientState>()
-        .add_state::<ClientMode>()
-        .add_state::<ServerState>()
-        .add_state::<MainMenuState>()
+        .init_state::<ClientState>()
+        .init_state::<ClientMode>()
+        .init_state::<ServerState>()
+        .init_state::<MainMenuState>()
         .init_resource::<Lobby>()
         .init_resource::<PendingClientMessage>()
         .init_resource::<PendingServerMessage>()
-        .configure_set(PreUpdate, ReadMessagesSet)
-        .configure_set(Update, HandlingMessagesSet)
-        .configure_set(Update, PlayerSet.after(HandlingMessagesSet))
-        .configure_set(
+        .configure_sets(PreUpdate, ReadMessagesSet)
+        .configure_sets(Update, HandlingMessagesSet)
+        .configure_sets(Update, PlayerSet.after(HandlingMessagesSet))
+        .configure_sets(
             Update,
             ChunkMeshingSet
                 .after(TerrainGenSet)
@@ -69,14 +66,14 @@ fn main() {
         .add_systems(
             PreUpdate,
             client_receive_system
-                .run_if(bevy_renet::transport::client_connected())
-                .in_set(ReadMessagesSet),
+                .in_set(ReadMessagesSet)
+                .run_if(client_connected)
         )
         .add_systems(
             Update,
             client_handle_messages
-                .run_if(bevy_renet::transport::client_connected())
-                .in_set(HandlingMessagesSet),
+                .in_set(HandlingMessagesSet)
+                .run_if(client_connected)
         )
         .add_systems(
             PreUpdate,
@@ -100,8 +97,6 @@ fn update_presence(
     mut last_state: Local<Option<ClientState>>,
 ) {
     if *last_state != Some(*app_state.get()) {
-        println!("State changed to {:?}", app_state.get());
-
         state.assets = Some(ActivityAssets {
             large_image: Some("logo".to_string()),
             large_text: Some("Voxel Game".to_string()),

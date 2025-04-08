@@ -1,7 +1,6 @@
+use bevy::image::{ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor};
 use crate::ClientState;
 use bevy::prelude::*;
-use bevy::render::render_resource::{AddressMode, FilterMode, SamplerDescriptor};
-use bevy::render::texture::ImageSampler;
 
 pub const BLOCK_TEXTURE_ROWS: u8 = 8;
 pub const BLOCK_TEXTURE_COLUMNS: u8 = 16;
@@ -65,16 +64,16 @@ fn check_assets_ready(
 ) {
     use bevy::asset::LoadState;
 
-    match server.get_load_state(loading.0.clone()) {
+    match server.get_load_state(&loading.0.clone()).unwrap() {
         LoadState::Loaded => {
             let image = images.get_mut(&loading.0).unwrap();
-            image.sampler_descriptor = ImageSampler::Descriptor(SamplerDescriptor {
-                mag_filter: FilterMode::Nearest,
-                min_filter: FilterMode::Nearest,
-                mipmap_filter: FilterMode::Nearest,
-                address_mode_u: AddressMode::ClampToBorder,
-                address_mode_v: AddressMode::ClampToBorder,
-                address_mode_w: AddressMode::ClampToBorder,
+            image.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
+                mag_filter: ImageFilterMode::Nearest,
+                min_filter: ImageFilterMode::Nearest,
+                mipmap_filter: ImageFilterMode::Nearest,
+                address_mode_u: ImageAddressMode::ClampToBorder,
+                address_mode_v: ImageAddressMode::ClampToBorder,
+                address_mode_w: ImageAddressMode::ClampToBorder,
                 ..default()
             });
 

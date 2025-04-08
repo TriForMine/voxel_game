@@ -7,7 +7,6 @@ use bevy::math::IVec3;
 use bevy::prelude::*;
 use bevy_egui::egui::RichText;
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
-use bevy_renet::renet::transport::NetcodeClientTransport;
 use bevy_renet::renet::RenetClient;
 use renet_visualizer::RenetServerVisualizer;
 use std::net::SocketAddr;
@@ -62,7 +61,7 @@ fn main_menu_system(
             }
 
             if ui.button("Quit").clicked() {
-                exit.send(AppExit);
+                exit.send(AppExit::Success);
             }
         }
         MainMenuState::Singleplayer => {
@@ -135,7 +134,6 @@ fn main_menu_system(
 
 fn server_loading_menu_system(
     client: Res<RenetClient>,
-    client_transport: Res<NetcodeClientTransport>,
     mut contexts: EguiContexts,
     mut next_server_state: ResMut<NextState<ServerState>>,
     mut next_client_state: ResMut<NextState<ClientState>>,
@@ -144,7 +142,7 @@ fn server_loading_menu_system(
 ) {
     timeout.set_duration(Duration::from_secs(15));
 
-    if client_transport.is_connected() {
+    if client.is_connected() {
         timeout.reset();
         next_client_state.set(ClientState::LoadingWorld);
     } else if let Some(reason) = client.disconnect_reason() {
@@ -190,7 +188,7 @@ fn debug_menu_system(
 ) {
     if let Ok((player, player_transform)) = player_query.get_single() {
         let fps = diagnostics
-            .get(FrameTimeDiagnosticsPlugin::FPS)
+            .get(&FrameTimeDiagnosticsPlugin::FPS)
             .and_then(|fps| fps.average());
 
         let player_pos = World::coord_to_world(player_transform.translation);
@@ -286,7 +284,7 @@ impl Plugin for UIPlugin {
                 Update,
                 loading_menu_system.run_if(
                     in_state(ClientState::LoadingTexture)
-                        .or_else(in_state(ClientState::LoadingWorld)),
+                        .or(in_state(ClientState::LoadingWorld)),
                 ),
             );
     }

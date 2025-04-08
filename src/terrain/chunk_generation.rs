@@ -7,6 +7,7 @@ use bevy::tasks::{AsyncComputeTaskPool, Task};
 use bevy_renet::renet::RenetServer;
 use futures_lite::future;
 use std::sync::{Arc, RwLock};
+use bincode::config;
 
 #[derive(Component)]
 pub struct TerrainGenTask(Task<Arc<RwLock<Chunk>>>);
@@ -44,7 +45,7 @@ pub fn process_chunk_generation(
     mut gen_chunks: Query<(Entity, &ServerChunkEntity, &mut TerrainGenTask)>,
     mut server: ResMut<RenetServer>,
 ) {
-    gen_chunks.for_each_mut(|(entity, chunk_entity, mut gen_task)| {
+    gen_chunks.iter_mut().for_each(|(entity, chunk_entity, mut gen_task)| {
         if let Some(chunk) = future::block_on(future::poll_once(&mut gen_task.0)) {
             let neighbors = game_world
                 .world
@@ -84,10 +85,10 @@ pub fn process_chunk_generation(
 
             if let Some(players_waiting_for_chunk) = players_waiting_for_chunk {
                 for client_id in players_waiting_for_chunk.iter() {
-                    let message = bincode::serialize(&ServerMessage::Chunk(
+                    let message = bincode::serde::encode_to_vec(&ServerMessage::Chunk(
                         chunk_entity.0,
                         chunk.read().unwrap().compress(),
-                    ))
+                    ), config::standard())
                     .unwrap();
                     server.send_message(*client_id, Channel::Chunk, message);
                 }

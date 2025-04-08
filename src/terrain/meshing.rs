@@ -5,13 +5,13 @@ use crate::voxel::mesh_builder::create_chunk_mesh;
 use crate::voxel::texture::ResourcePack;
 use crate::voxel::world::GameWorld;
 use crate::{ClientState, ServerState};
-use bevy::asset::{Assets, Handle};
-use bevy::pbr::MaterialMeshBundle;
+use bevy::asset::{Assets};
 use bevy::prelude::*;
 use bevy::render::mesh::PrimitiveTopology;
 use bevy::tasks::{AsyncComputeTaskPool, Task};
 use futures_lite::future;
 use std::sync::Arc;
+use bevy::render::primitives::Aabb;
 
 #[derive(Component)]
 pub struct ChunkMeshTask(Task<Mesh>);
@@ -24,17 +24,15 @@ pub fn prepare_chunks(
 ) {
     for (chunk, chunk_key) in chunks.iter() {
         let mut entity_commands = commands.entity(chunk);
-        entity_commands.insert(MaterialMeshBundle {
-            material: resource_pack.handle.clone(),
-            mesh: meshes.add(Mesh::new(PrimitiveTopology::TriangleList)),
-            transform: Transform::from_xyz(
+        entity_commands.insert((
+            Transform::from_xyz(
                 (chunk_key.0.x * SIZE) as f32,
                 0.0,
                 (chunk_key.0.z * SIZE) as f32,
             ),
-            visibility: Visibility::Hidden,
-            ..Default::default()
-        });
+            Visibility::Hidden,
+        ));
+        debug!("Prepared chunk entity placeholder for {:?}", chunk_key.0);
     }
 }
 
@@ -84,19 +82,77 @@ pub fn queue_mesh_tasks(mut commands: Commands, game_world: Res<GameWorld>) {
 
 pub fn process_mesh_tasks(
     mut meshes: ResMut<Assets<Mesh>>,
-    mut chunk_query: Query<
-        (Entity, &Handle<Mesh>, &mut Visibility, &mut ChunkMeshTask),
+    mut task_query: Query<
+        (Entity, &ChunkEntity, &mut Visibility, &mut ChunkMeshTask),
         With<ChunkEntity>,
     >,
+    // Query only Mesh3d and the Material
+    mut mesh_query: Query<(
+        Option<&mut Mesh3d>,
+        Option<&mut MeshMaterial3d<StandardMaterial>>, // Still need the material
+    )>,
     mut commands: Commands,
+    resource_pack: Res<ResourcePack>,
 ) {
-    chunk_query.for_each_mut(|(entity, handle, mut visibility, mut mesh_task)| {
-        if let Some(mesh) = future::block_on(future::poll_once(&mut mesh_task.0)) {
-            *meshes.get_mut(handle).unwrap() = mesh;
-            *visibility = Visibility::Visible;
+    for (entity, chunk_key, mut visibility, mut mesh_task) in task_query.iter_mut() {
+        if let Some(new_mesh) = future::block_on(future::poll_once(&mut mesh_task.0)) {
+            let vertex_count = new_mesh.count_vertices();
+            let index_count = new_mesh.indices().map_or(0, |indices| indices.len());
+
+            debug!(
+                "Processing mesh task for chunk {:?}: Vertices={}, Indices={}",
+                chunk_key.0, vertex_count, index_count
+            );
+
+            if vertex_count == 0 || index_count == 0 {
+                warn!(
+                    "Generated mesh for chunk {:?} is empty. Setting visibility to hidden.",
+                    chunk_key.0
+                );
+                // Only remove Mesh3d and the material if they existed
+                if mesh_query.get(entity).is_ok() {
+                    commands.entity(entity).remove::<(Mesh3d, MeshMaterial3d<StandardMaterial>)>();
+                }
+                *visibility = Visibility::Hidden;
+            } else {
+                let new_mesh_handle = meshes.add(new_mesh);
+
+                // Try to get existing components mutably
+                if let Ok((mut maybe_mesh_3d, mut maybe_material)) = mesh_query.get_mut(entity) {
+                    // Entity already has components (or some of them)
+                    if let Some(mut mesh_3d) = maybe_mesh_3d {
+                        // Update existing mesh handle
+                        debug!("Updating existing mesh for chunk {:?}", chunk_key.0);
+                        if mesh_3d.0 != new_mesh_handle { // Only update if handle actually changed
+                            mesh_3d.0 = new_mesh_handle.clone();
+                        }
+                    } else {
+                        // Mesh component missing, insert it
+                        debug!("Inserting Mesh3d for chunk {:?}", chunk_key.0);
+                        commands.entity(entity).insert(Mesh3d(new_mesh_handle.clone()));
+                    }
+
+                    // Check and insert material if missing
+                    if maybe_material.is_none() {
+                        debug!("Inserting MeshMaterial3d for chunk {:?}", chunk_key.0);
+                        commands.entity(entity).insert(MeshMaterial3d(resource_pack.handle.clone()));
+                    }
+                } else {
+                    // Entity likely had no mesh components before, insert both
+                    debug!("Attaching new mesh and material to chunk {:?}", chunk_key.0);
+                    commands.entity(entity).insert((
+                        MeshMaterial3d(resource_pack.handle.clone()),
+                        Mesh3d(new_mesh_handle),
+                    ));
+                }
+                // Make it visible
+                *visibility = Visibility::Visible;
+            }
+
+            // Remove the task component once processed
             commands.entity(entity).remove::<ChunkMeshTask>();
         }
-    });
+    }
 }
 
 pub fn check_server_loading_world_ended(
