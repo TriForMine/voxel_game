@@ -1,5 +1,5 @@
-use bevy::image::{ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor};
 use crate::ClientState;
+use bevy::image::{ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor};
 use bevy::prelude::*;
 
 pub const BLOCK_TEXTURE_ROWS: u8 = 8;

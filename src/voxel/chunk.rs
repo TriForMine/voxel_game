@@ -1,21 +1,21 @@
-use crate::terrain::chunk_generation::TerrainGenSet;
-use crate::voxel::block::{Block, BlockType};
-use crate::voxel::world::World;
-use bevy::math::IVec3;
-use bevy::prelude::*;
-use lz4::block::{compress, decompress, CompressionMode};
-use std::sync::{RwLock, Weak};
-use bincode::config;
 use crate::meshing::check_loading_world_ended;
+use crate::terrain::chunk_generation::TerrainGenSet;
 use crate::terrain::chunk_generation::{process_chunk_generation, queue_chunk_generation};
 use crate::terrain::meshing::{
     check_server_loading_world_ended, clear_dirty_chunks, prepare_chunks, process_mesh_tasks,
     queue_mesh_tasks, ChunkMeshingSet,
 };
+use crate::voxel::block::{Block, BlockType};
+use crate::voxel::world::World;
 use crate::{ClientState, ServerState};
+use bevy::math::IVec3;
+use bevy::prelude::*;
+use bincode::config;
 use lazy_static::*;
+use lz4::block::{compress, decompress, CompressionMode};
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
+use std::sync::{RwLock, Weak};
 
 lazy_static! {
     // when SIZE 16, BIT_SIZE is 4
@@ -55,7 +55,9 @@ impl Chunk {
     pub fn from_compressed(bytes: &CompressedChunk) -> Self {
         let decompressed = decompress(&bytes, None).unwrap();
 
-        bincode::serde::decode_from_slice(&decompressed, config::standard()).unwrap().0
+        bincode::serde::decode_from_slice(&decompressed, config::standard())
+            .unwrap()
+            .0
     }
 
     pub fn compress(&self) -> CompressedChunk {
@@ -195,21 +197,18 @@ impl Plugin for ClientChunkPlugin {
             Last,
             check_loading_world_ended.run_if(in_state(ClientState::LoadingWorld)),
         )
-            .add_systems(
-                Update,
-                (prepare_chunks, queue_mesh_tasks, process_mesh_tasks)
-                    .chain()
-                    .in_set(ChunkMeshingSet)
-                    .run_if(
-                        in_state(ClientState::LoadingWorld).or(in_state(ClientState::Playing)),
-                    ),
-            )
-            .add_systems(
-                Last,
-                clear_dirty_chunks.run_if(
-                    in_state(ClientState::LoadingWorld).or(in_state(ClientState::Playing)),
-                ),
-            );
+        .add_systems(
+            Update,
+            (prepare_chunks, queue_mesh_tasks, process_mesh_tasks)
+                .chain()
+                .in_set(ChunkMeshingSet)
+                .run_if(in_state(ClientState::LoadingWorld).or(in_state(ClientState::Playing))),
+        )
+        .add_systems(
+            Last,
+            clear_dirty_chunks
+                .run_if(in_state(ClientState::LoadingWorld).or(in_state(ClientState::Playing))),
+        );
     }
 }
 
@@ -220,14 +219,12 @@ impl Plugin for ServerChunkPlugin {
             Last,
             check_server_loading_world_ended.run_if(in_state(ServerState::LoadingWorld)),
         )
-            .add_systems(
-                Update,
-                (queue_chunk_generation, process_chunk_generation)
-                    .chain()
-                    .in_set(TerrainGenSet)
-                    .run_if(
-                        in_state(ServerState::LoadingWorld).or(in_state(ServerState::Running)),
-                    ),
-            );
+        .add_systems(
+            Update,
+            (queue_chunk_generation, process_chunk_generation)
+                .chain()
+                .in_set(TerrainGenSet)
+                .run_if(in_state(ServerState::LoadingWorld).or(in_state(ServerState::Running))),
+        );
     }
 }

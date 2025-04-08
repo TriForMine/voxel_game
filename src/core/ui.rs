@@ -283,8 +283,7 @@ impl Plugin for UIPlugin {
             .add_systems(
                 Update,
                 loading_menu_system.run_if(
-                    in_state(ClientState::LoadingTexture)
-                        .or(in_state(ClientState::LoadingWorld)),
+                    in_state(ClientState::LoadingTexture).or(in_state(ClientState::LoadingWorld)),
                 ),
             );
     }

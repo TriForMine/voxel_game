@@ -5,8 +5,8 @@
 
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::prelude::*;
-use bevy_renet::{client_connected, RenetClientPlugin, RenetServerPlugin};
 use bevy_renet::netcode::{NetcodeClientPlugin, NetcodeServerPlugin};
+use bevy_renet::{client_connected, RenetClientPlugin, RenetServerPlugin};
 use discord_presence::models::rich_presence::ActivityAssets;
 use voxel_game::chunk::{ClientChunkPlugin, ServerChunkPlugin};
 use voxel_game::chunk_generation::TerrainGenSet;
@@ -15,7 +15,12 @@ use voxel_game::player::{PlayerPlugin, PlayerSet};
 use voxel_game::texture::TexturePlugin;
 use voxel_game::ui::{MainMenuState, UIPlugin};
 use voxel_game::world::{ClientWorldPlugin, ServerWorldPlugin};
-use voxel_game::{client_handle_messages, client_receive_system, server_handle_messages_system, server_receive_system, server_update_system, ActivityState, ClientMode, ClientState, HandlingMessagesSet, Lobby, PendingClientMessage, PendingServerMessage, RPCConfig, RPCPlugin, ReadMessagesSet, ServerState};
+use voxel_game::{
+    client_handle_messages, client_receive_system, server_handle_messages_system,
+    server_receive_system, server_update_system, ActivityState, ClientMode, ClientState,
+    HandlingMessagesSet, Lobby, PendingClientMessage, PendingServerMessage, RPCConfig, RPCPlugin,
+    ReadMessagesSet, ServerState,
+};
 
 fn main() {
     App::new()
@@ -67,13 +72,13 @@ fn main() {
             PreUpdate,
             client_receive_system
                 .in_set(ReadMessagesSet)
-                .run_if(client_connected)
+                .run_if(client_connected),
         )
         .add_systems(
             Update,
             client_handle_messages
                 .in_set(HandlingMessagesSet)
-                .run_if(client_connected)
+                .run_if(client_connected),
         )
         .add_systems(
             PreUpdate,

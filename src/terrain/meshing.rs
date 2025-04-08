@@ -5,13 +5,13 @@ use crate::voxel::mesh_builder::create_chunk_mesh;
 use crate::voxel::texture::ResourcePack;
 use crate::voxel::world::GameWorld;
 use crate::{ClientState, ServerState};
-use bevy::asset::{Assets};
+use bevy::asset::Assets;
 use bevy::prelude::*;
 use bevy::render::mesh::PrimitiveTopology;
+use bevy::render::primitives::Aabb;
 use bevy::tasks::{AsyncComputeTaskPool, Task};
 use futures_lite::future;
 use std::sync::Arc;
-use bevy::render::primitives::Aabb;
 
 #[derive(Component)]
 pub struct ChunkMeshTask(Task<Mesh>);
@@ -111,7 +111,9 @@ pub fn process_mesh_tasks(
                 );
                 // Only remove Mesh3d and the material if they existed
                 if mesh_query.get(entity).is_ok() {
-                    commands.entity(entity).remove::<(Mesh3d, MeshMaterial3d<StandardMaterial>)>();
+                    commands
+                        .entity(entity)
+                        .remove::<(Mesh3d, MeshMaterial3d<StandardMaterial>)>();
                 }
                 *visibility = Visibility::Hidden;
             } else {
@@ -123,19 +125,24 @@ pub fn process_mesh_tasks(
                     if let Some(mut mesh_3d) = maybe_mesh_3d {
                         // Update existing mesh handle
                         debug!("Updating existing mesh for chunk {:?}", chunk_key.0);
-                        if mesh_3d.0 != new_mesh_handle { // Only update if handle actually changed
+                        if mesh_3d.0 != new_mesh_handle {
+                            // Only update if handle actually changed
                             mesh_3d.0 = new_mesh_handle.clone();
                         }
                     } else {
                         // Mesh component missing, insert it
                         debug!("Inserting Mesh3d for chunk {:?}", chunk_key.0);
-                        commands.entity(entity).insert(Mesh3d(new_mesh_handle.clone()));
+                        commands
+                            .entity(entity)
+                            .insert(Mesh3d(new_mesh_handle.clone()));
                     }
 
                     // Check and insert material if missing
                     if maybe_material.is_none() {
                         debug!("Inserting MeshMaterial3d for chunk {:?}", chunk_key.0);
-                        commands.entity(entity).insert(MeshMaterial3d(resource_pack.handle.clone()));
+                        commands
+                            .entity(entity)
+                            .insert(MeshMaterial3d(resource_pack.handle.clone()));
                     }
                 } else {
                     // Entity likely had no mesh components before, insert both

@@ -1,10 +1,10 @@
-use bevy::asset::RenderAssetUsages;
 use super::chunk::HEIGHT;
 use super::chunk::SIZE;
 use crate::voxel::block::Block;
 use crate::voxel::chunk::Chunk;
 use crate::voxel::direction::Direction;
 use crate::voxel::quad::Quad;
+use bevy::asset::RenderAssetUsages;
 use bevy::math::IVec3;
 use bevy::prelude::*;
 use bevy::render::mesh::Indices;
@@ -12,7 +12,10 @@ use bevy::render::mesh::Mesh;
 use bevy::render::render_resource::PrimitiveTopology;
 
 pub fn create_chunk_mesh(chunk: &Chunk) -> Mesh {
-    let mut chunk_mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default());
+    let mut chunk_mesh = Mesh::new(
+        PrimitiveTopology::TriangleList,
+        RenderAssetUsages::default(),
+    );
     let mut quads = Vec::<Quad>::new();
 
     for x in 0..(SIZE) {

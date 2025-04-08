@@ -6,14 +6,14 @@ use crate::{Channel, ClientMessage, ClientState, ResMut, ServerState};
 use bevy::app::App;
 use bevy::math::{FloatOrd, IVec2, IVec3, Vec3};
 use bevy::prelude::{
-    default, Commands, Component, Entity, Mesh, OnEnter, Plugin, PointLight, Res,
-    Resource, Transform,
+    default, Commands, Component, Entity, Mesh, OnEnter, Plugin, PointLight, Res, Resource,
+    Transform,
 };
 use bevy::tasks::Task;
 use bevy_renet::renet::RenetClient;
+use bincode::config;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock, Weak};
-use bincode::config;
 
 #[derive(Component)]
 pub struct ComputeMesh(pub Task<(Mesh, IVec3)>);
@@ -292,7 +292,11 @@ fn setup_world(
     request.sort_by_key(|pos| FloatOrd(Vec3::distance(Vec3::ZERO, pos.as_vec3())));
 
     request.iter().for_each(|request| {
-        let message = bincode::serde::encode_to_vec(&ClientMessage::RequestChunk(*request), config::standard()).unwrap();
+        let message = bincode::serde::encode_to_vec(
+            &ClientMessage::RequestChunk(*request),
+            config::standard(),
+        )
+        .unwrap();
         client.send_message(Channel::Reliable, message);
     });
 
@@ -302,7 +306,7 @@ fn setup_world(
             range: 100.0,
             ..default()
         },
-        Transform::from_xyz(1.8, 300.0, 1.8).looking_at(Vec3::ZERO, Vec3::Y)
+        Transform::from_xyz(1.8, 300.0, 1.8).looking_at(Vec3::ZERO, Vec3::Y),
     ));
 }
 

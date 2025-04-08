@@ -7,16 +7,16 @@ use crate::{
     connection_config, Channel, ClientMessage, Commands, EventReader, IVec2, Lobby, NetworkPlayer,
     PendingClientMessage, Query, Res, ResMut, ServerMessage, Transform, Vec3,
 };
-use bevy_egui::{EguiContexts};
+use bevy_egui::EguiContexts;
 use bevy_renet::netcode::{NetcodeServerTransport, ServerAuthentication, ServerConfig};
 use bevy_renet::renet::{RenetServer, ServerEvent};
+use bincode::config;
 use local_ip_address::local_ip;
 use renet_visualizer::RenetServerVisualizer;
 use std::collections::HashSet;
 use std::net::{SocketAddr, UdpSocket};
 use std::sync::Arc;
 use std::time::SystemTime;
-use bincode::config;
 
 pub fn new_renet_server(singleplayer: bool) -> (RenetServer, NetcodeServerTransport, SocketAddr) {
     let server = RenetServer::new(connection_config());
@@ -42,7 +42,7 @@ pub fn new_renet_server(singleplayer: bool) -> (RenetServer, NetcodeServerTransp
     let current_time: std::time::Duration = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap();
-    
+
     let server_config = ServerConfig {
         current_time,
         max_clients: if singleplayer { 1 } else { 64 },
@@ -94,7 +94,9 @@ pub fn server_update_system(
 
                 lobby.players.insert(*client_id, player);
 
-                let message = bincode::serde::encode_to_vec(&ServerMessage::Ping, config::standard()).unwrap();
+                let message =
+                    bincode::serde::encode_to_vec(&ServerMessage::Ping, config::standard())
+                        .unwrap();
                 server.send_message(*client_id, Channel::Reliable, message);
 
                 // Send all players to the new player
@@ -103,13 +105,19 @@ pub fn server_update_system(
                         continue;
                     }
                     let position = players.get(*player).unwrap().transform.translation;
-                    let message =
-                        bincode::serde::encode_to_vec(&ServerMessage::PlayerJoined(*id, position), config::standard()).unwrap();
+                    let message = bincode::serde::encode_to_vec(
+                        &ServerMessage::PlayerJoined(*id, position),
+                        config::standard(),
+                    )
+                    .unwrap();
                     server.send_message(*client_id, Channel::Reliable, message);
                 }
 
-                let message =
-                    bincode::serde::encode_to_vec(&ServerMessage::PlayerJoined(*client_id, position), config::standard()).unwrap();
+                let message = bincode::serde::encode_to_vec(
+                    &ServerMessage::PlayerJoined(*client_id, position),
+                    config::standard(),
+                )
+                .unwrap();
                 server.broadcast_message_except(*client_id, Channel::Reliable, message);
             }
             ServerEvent::ClientDisconnected { client_id, reason } => {
@@ -120,7 +128,11 @@ pub fn server_update_system(
                     commands.entity(player).despawn();
                 }
 
-                let message = bincode::serde::encode_to_vec(&ServerMessage::PlayerLeft(*client_id), config::standard()).unwrap();
+                let message = bincode::serde::encode_to_vec(
+                    &ServerMessage::PlayerLeft(*client_id),
+                    config::standard(),
+                )
+                .unwrap();
                 server.broadcast_message_except(*client_id, Channel::Reliable, message);
             }
         }
@@ -136,7 +148,10 @@ pub fn server_receive_system(
     for client_id in server.clients_id() {
         for channel in [Channel::Reliable, Channel::Unreliable, Channel::Chunk] {
             while let Some(message) = server.receive_message(client_id, channel) {
-                let message: ClientMessage = bincode::serde::decode_from_slice(&message, config::standard()).unwrap().0;
+                let message: ClientMessage =
+                    bincode::serde::decode_from_slice(&message, config::standard())
+                        .unwrap()
+                        .0;
 
                 pending_messages.0.push((client_id, message));
             }
@@ -161,12 +176,19 @@ pub fn server_handle_messages_system(
                     .unwrap()
                     .edit_voxel(&pos, BlockType::Void);
 
-                let message = bincode::serde::encode_to_vec(&ServerMessage::BlockBroken(pos), config::standard()).unwrap();
+                let message = bincode::serde::encode_to_vec(
+                    &ServerMessage::BlockBroken(pos),
+                    config::standard(),
+                )
+                .unwrap();
                 server.broadcast_message(Channel::Reliable, message);
             }
             ClientMessage::PlayerMoved(pos) => {
-                let message =
-                    bincode::serde::encode_to_vec(&ServerMessage::PlayerMoved(client_id, pos), config::standard()).unwrap();
+                let message = bincode::serde::encode_to_vec(
+                    &ServerMessage::PlayerMoved(client_id, pos),
+                    config::standard(),
+                )
+                .unwrap();
                 server.broadcast_message_except(client_id, Channel::Unreliable, message);
             }
             ClientMessage::PlaceBlock(pos, block_type) => {
@@ -176,8 +198,11 @@ pub fn server_handle_messages_system(
                     .unwrap()
                     .edit_voxel(&pos, block_type);
 
-                let message =
-                    bincode::serde::encode_to_vec(&ServerMessage::BlockPlaced(pos, block_type), config::standard()).unwrap();
+                let message = bincode::serde::encode_to_vec(
+                    &ServerMessage::BlockPlaced(pos, block_type),
+                    config::standard(),
+                )
+                .unwrap();
                 server.broadcast_message(Channel::Reliable, message);
             }
             ClientMessage::RequestChunk(coord) => {
@@ -186,8 +211,11 @@ pub fn server_handle_messages_system(
                 if let Some(chunk) = chunk {
                     let chunk = chunk.read().unwrap();
 
-                    let message =
-                        bincode::serde::encode_to_vec(&ServerMessage::Chunk(coord, chunk.compress()), config::standard()).unwrap();
+                    let message = bincode::serde::encode_to_vec(
+                        &ServerMessage::Chunk(coord, chunk.compress()),
+                        config::standard(),
+                    )
+                    .unwrap();
                     server.send_message(client_id, Channel::Chunk, message);
                 } else {
                     let world = Arc::clone(&server_world.world);
