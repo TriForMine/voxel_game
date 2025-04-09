@@ -7,8 +7,6 @@ use crate::voxel::world::GameWorld;
 use crate::{ClientState, ServerState};
 use bevy::asset::Assets;
 use bevy::prelude::*;
-use bevy::render::mesh::PrimitiveTopology;
-use bevy::render::primitives::Aabb;
 use bevy::tasks::{AsyncComputeTaskPool, Task};
 use futures_lite::future;
 use std::sync::Arc;
@@ -18,9 +16,7 @@ pub struct ChunkMeshTask(Task<Mesh>);
 
 pub fn prepare_chunks(
     chunks: Query<(Entity, &ChunkEntity), Added<ChunkEntity>>,
-    mut meshes: ResMut<Assets<Mesh>>,
     mut commands: Commands,
-    resource_pack: Res<ResourcePack>,
 ) {
     for (chunk, chunk_key) in chunks.iter() {
         let mut entity_commands = commands.entity(chunk);
@@ -120,7 +116,7 @@ pub fn process_mesh_tasks(
                 let new_mesh_handle = meshes.add(new_mesh);
 
                 // Try to get existing components mutably
-                if let Ok((mut maybe_mesh_3d, mut maybe_material)) = mesh_query.get_mut(entity) {
+                if let Ok((maybe_mesh_3d, maybe_material)) = mesh_query.get_mut(entity) {
                     // Entity already has components (or some of them)
                     if let Some(mut mesh_3d) = maybe_mesh_3d {
                         // Update existing mesh handle
@@ -182,9 +178,7 @@ pub fn check_loading_world_ended(
         .unwrap()
         .pending_requested_chunks
         .read()
-        .unwrap()
-        .len()
-        == 0
+        .unwrap().is_empty()
     {
         next_state.set(ClientState::Playing);
     }
