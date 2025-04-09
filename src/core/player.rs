@@ -4,6 +4,7 @@ use crate::voxel::world::{GameWorld, World};
 use crate::{Channel, ClientMessage, ClientState};
 use bevy::ecs::event::EventCursor;
 use bevy::input::mouse::MouseMotion;
+use bevy::pbr::wireframe::WireframeConfig;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, PrimaryWindow};
 use bevy_renet::renet::RenetClient;
@@ -67,6 +68,7 @@ pub struct KeyBindings {
     pub move_right: KeyCode,
     pub jump: KeyCode,
     pub toggle_grab_cursor: KeyCode,
+    pub toggle_wireframe: KeyCode,
 }
 
 impl Default for KeyBindings {
@@ -78,6 +80,7 @@ impl Default for KeyBindings {
             move_right: KeyCode::KeyD,
             jump: KeyCode::Space,
             toggle_grab_cursor: KeyCode::Escape,
+            toggle_wireframe: KeyCode::F3,
         }
     }
 }
@@ -510,6 +513,16 @@ fn player_handle_voxel_raycast(
     }
 }
 
+pub fn wireframe_toggle(
+    keys: Res<ButtonInput<KeyCode>>,
+    key_bindings: Res<KeyBindings>,
+    mut wireframe_config: ResMut<WireframeConfig>,
+) {
+    if keys.just_pressed(key_bindings.toggle_wireframe) {
+        wireframe_config.global = !wireframe_config.global;
+    }
+}
+
 pub struct PlayerPlugin;
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
@@ -525,6 +538,7 @@ impl Plugin for PlayerPlugin {
                     player_look,
                     cursor_grab,
                     player_handle_voxel_raycast,
+                    wireframe_toggle,
                 )
                     .in_set(PlayerSet)
                     .run_if(in_state(ClientState::Playing)),

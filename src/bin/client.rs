@@ -3,8 +3,12 @@
     windows_subsystem = "windows"
 )]
 
+use bevy::color::palettes::css::WHITE;
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
+use bevy::pbr::wireframe::{WireframeConfig, WireframePlugin};
 use bevy::prelude::*;
+use bevy::render::RenderPlugin;
+use bevy::render::settings::{RenderCreation, WgpuFeatures, WgpuSettings};
 use bevy_renet::netcode::{NetcodeClientPlugin, NetcodeServerPlugin};
 use bevy_renet::{client_connected, RenetClientPlugin, RenetServerPlugin};
 use discord_presence::models::rich_presence::ActivityAssets;
@@ -25,13 +29,22 @@ use voxel_game::{
 fn main() {
     App::new()
         .add_plugins((
-            DefaultPlugins.set(WindowPlugin {
-                primary_window: Some(Window {
-                    title: "Voxel Game".to_string(),
+            DefaultPlugins
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        title: "Voxel Game".to_string(),
+                        ..Default::default()
+                    }),
                     ..Default::default()
+                })
+                .set(RenderPlugin {
+                    render_creation: RenderCreation::Automatic(WgpuSettings {
+                        features: WgpuFeatures::POLYGON_MODE_LINE,
+                        ..default()
+                    }),
+                    ..default()
                 }),
-                ..Default::default()
-            }),
+            WireframePlugin,
             PlayerPlugin,
             UIPlugin,
             TexturePlugin,
@@ -58,6 +71,10 @@ fn main() {
         .init_resource::<Lobby>()
         .init_resource::<PendingClientMessage>()
         .init_resource::<PendingServerMessage>()
+        .insert_resource(WireframeConfig {
+            global: false,
+            default_color: WHITE.into()
+        })
         .configure_sets(PreUpdate, ReadMessagesSet)
         .configure_sets(Update, HandlingMessagesSet)
         .configure_sets(Update, PlayerSet.after(HandlingMessagesSet))
