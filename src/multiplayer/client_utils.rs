@@ -103,7 +103,6 @@ pub fn client_handle_messages(
                     Mesh3d(meshes.add(Capsule3d {
                         radius: PLAYER_WIDTH,
                         half_length: PLAYER_HEIGHT - PLAYER_WIDTH,
-                        ..Default::default()
                     })),
                     MeshMaterial3d(materials.add(StandardMaterial {
                         base_color: Color::srgb(0.0, 0.0, 1.0),

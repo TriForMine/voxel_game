@@ -106,7 +106,7 @@ pub fn server_update_system(
                     }
                     let position = players.get(*player).unwrap().transform.translation;
                     let message = bincode::serde::encode_to_vec(
-                        &ServerMessage::PlayerJoined(*id, position),
+                        ServerMessage::PlayerJoined(*id, position),
                         config::standard(),
                     )
                     .unwrap();
@@ -114,7 +114,7 @@ pub fn server_update_system(
                 }
 
                 let message = bincode::serde::encode_to_vec(
-                    &ServerMessage::PlayerJoined(*client_id, position),
+                    ServerMessage::PlayerJoined(*client_id, position),
                     config::standard(),
                 )
                 .unwrap();
@@ -124,12 +124,12 @@ pub fn server_update_system(
                 println!("Client {} disconnected: {}", client_id, reason);
                 visualizer.remove_client(*client_id);
 
-                if let Some((_, player)) = lobby.players.remove_by_left(&client_id) {
+                if let Some((_, player)) = lobby.players.remove_by_left(client_id) {
                     commands.entity(player).despawn();
                 }
 
                 let message = bincode::serde::encode_to_vec(
-                    &ServerMessage::PlayerLeft(*client_id),
+                    ServerMessage::PlayerLeft(*client_id),
                     config::standard(),
                 )
                 .unwrap();
@@ -177,7 +177,7 @@ pub fn server_handle_messages_system(
                     .edit_voxel(&pos, BlockType::Void);
 
                 let message = bincode::serde::encode_to_vec(
-                    &ServerMessage::BlockBroken(pos),
+                    ServerMessage::BlockBroken(pos),
                     config::standard(),
                 )
                 .unwrap();
@@ -185,7 +185,7 @@ pub fn server_handle_messages_system(
             }
             ClientMessage::PlayerMoved(pos) => {
                 let message = bincode::serde::encode_to_vec(
-                    &ServerMessage::PlayerMoved(client_id, pos),
+                    ServerMessage::PlayerMoved(client_id, pos),
                     config::standard(),
                 )
                 .unwrap();
@@ -199,7 +199,7 @@ pub fn server_handle_messages_system(
                     .edit_voxel(&pos, block_type);
 
                 let message = bincode::serde::encode_to_vec(
-                    &ServerMessage::BlockPlaced(pos, block_type),
+                    ServerMessage::BlockPlaced(pos, block_type),
                     config::standard(),
                 )
                 .unwrap();
@@ -212,7 +212,7 @@ pub fn server_handle_messages_system(
                     let chunk = chunk.read().unwrap();
 
                     let message = bincode::serde::encode_to_vec(
-                        &ServerMessage::Chunk(coord, chunk.compress()),
+                        ServerMessage::Chunk(coord, chunk.compress()),
                         config::standard(),
                     )
                     .unwrap();

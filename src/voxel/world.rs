@@ -1,7 +1,7 @@
 use crate::chunk::ServerChunkEntity;
 use crate::voxel::block::{Block, BlockType};
 use crate::voxel::chunk::ChunkEntity;
-use crate::voxel::chunk::{Chunk, HEIGHT, SIZE};
+use crate::voxel::chunk::{Chunk, CHUNK_HEIGHT, CHUNK_SIZE};
 use crate::{Channel, ClientMessage, ClientState, ResMut, ServerState};
 use bevy::app::App;
 use bevy::math::{FloatOrd, IVec2, IVec3, Vec3};
@@ -45,6 +45,12 @@ pub struct World {
     pub(crate) players: Arc<RwLock<HashMap<u64, Entity>>>,
 }
 
+impl Default for World {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl World {
     pub fn new() -> Self {
         Self {
@@ -61,19 +67,19 @@ impl World {
 
     pub fn make_coords_valid(chunk_pos: &mut IVec3, local_pos: &mut IVec3) {
         while local_pos.x < 0 {
-            local_pos.x += SIZE;
+            local_pos.x += CHUNK_SIZE;
             chunk_pos.x -= 1;
         }
-        while local_pos.x >= SIZE {
-            local_pos.x -= SIZE;
+        while local_pos.x >= CHUNK_SIZE {
+            local_pos.x -= CHUNK_SIZE;
             chunk_pos.x += 1;
         }
         while local_pos.z < 0 {
-            local_pos.z += SIZE;
+            local_pos.z += CHUNK_SIZE;
             chunk_pos.z -= 1;
         }
-        while local_pos.z >= SIZE {
-            local_pos.z -= SIZE;
+        while local_pos.z >= CHUNK_SIZE {
+            local_pos.z -= CHUNK_SIZE;
             chunk_pos.z += 1;
         }
     }
@@ -109,7 +115,7 @@ impl World {
 
     pub fn get_chunk(&self, chunk_coord: IVec3) -> Option<Arc<RwLock<Chunk>>> {
         let chunks = self.chunk_data_map.read().unwrap();
-        chunks.get(&chunk_coord).map(|chunk| Arc::clone(chunk))
+        chunks.get(&chunk_coord).map(Arc::clone)
     }
 
     pub fn set_chunk(&self, chunk_coord: IVec3, chunk: Chunk) {
@@ -152,7 +158,7 @@ impl World {
 
     pub fn get_highest_block_at_coord(&self, global_coord: &IVec2) -> IVec3 {
         let mut chunk_coord = IVec3::default();
-        let mut local_coord = IVec3::new(global_coord.x, HEIGHT - 1, global_coord.y);
+        let mut local_coord = IVec3::new(global_coord.x, CHUNK_HEIGHT - 1, global_coord.y);
         Self::make_coords_valid(&mut chunk_coord, &mut local_coord);
         let chunks = self.chunk_data_map.read().unwrap();
         let chunk = chunks.get(&chunk_coord);
@@ -181,9 +187,9 @@ impl World {
 
     pub fn chunk_local_to_world(chunk_coord: &IVec3, voxel_coord: &IVec3) -> IVec3 {
         IVec3::new(
-            chunk_coord.x * SIZE + voxel_coord.x,
+            chunk_coord.x * CHUNK_SIZE + voxel_coord.x,
             voxel_coord.y,
-            chunk_coord.z * SIZE + voxel_coord.z,
+            chunk_coord.z * CHUNK_SIZE + voxel_coord.z,
         )
     }
 
@@ -193,22 +199,22 @@ impl World {
                 .read()
                 .unwrap()
                 .get(&IVec3::new(chunk_coord.x - 1, chunk_coord.y, chunk_coord.z))
-                .map(|chunk| Arc::downgrade(chunk)),
+                .map(Arc::downgrade),
             self.chunk_data_map
                 .read()
                 .unwrap()
                 .get(&IVec3::new(chunk_coord.x + 1, chunk_coord.y, chunk_coord.z))
-                .map(|chunk| Arc::downgrade(chunk)),
+                .map(Arc::downgrade),
             self.chunk_data_map
                 .read()
                 .unwrap()
                 .get(&IVec3::new(chunk_coord.x, chunk_coord.y, chunk_coord.z - 1))
-                .map(|chunk| Arc::downgrade(chunk)),
+                .map(Arc::downgrade),
             self.chunk_data_map
                 .read()
                 .unwrap()
                 .get(&IVec3::new(chunk_coord.x, chunk_coord.y, chunk_coord.z + 1))
-                .map(|chunk| Arc::downgrade(chunk)),
+                .map(Arc::downgrade),
         ]
     }
 
@@ -293,7 +299,7 @@ fn setup_world(
 
     request.iter().for_each(|request| {
         let message = bincode::serde::encode_to_vec(
-            &ClientMessage::RequestChunk(*request),
+            ClientMessage::RequestChunk(*request),
             config::standard(),
         )
         .unwrap();

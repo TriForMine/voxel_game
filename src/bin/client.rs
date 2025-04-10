@@ -7,8 +7,8 @@ use bevy::color::palettes::css::WHITE;
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::pbr::wireframe::{WireframeConfig, WireframePlugin};
 use bevy::prelude::*;
-use bevy::render::RenderPlugin;
 use bevy::render::settings::{RenderCreation, WgpuFeatures, WgpuSettings};
+use bevy::render::RenderPlugin;
 use bevy_renet::netcode::{NetcodeClientPlugin, NetcodeServerPlugin};
 use bevy_renet::{client_connected, RenetClientPlugin, RenetServerPlugin};
 use discord_presence::models::rich_presence::ActivityAssets;
@@ -73,7 +73,7 @@ fn main() {
         .init_resource::<PendingServerMessage>()
         .insert_resource(WireframeConfig {
             global: false,
-            default_color: WHITE.into()
+            default_color: WHITE.into(),
         })
         .configure_sets(PreUpdate, ReadMessagesSet)
         .configure_sets(Update, HandlingMessagesSet)

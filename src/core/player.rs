@@ -362,7 +362,7 @@ fn player_move(
             // send only if player moved
             if desired_velocity != Vec3::ZERO {
                 let message = bincode::serde::encode_to_vec(
-                    &ClientMessage::PlayerMoved(transform.translation),
+                    ClientMessage::PlayerMoved(transform.translation),
                     config::standard(),
                 )
                 .unwrap();
@@ -486,7 +486,7 @@ fn player_handle_voxel_raycast(
                                     .edit_voxel(&looking_at_pos, BlockType::Void);
 
                                 let message = bincode::serde::encode_to_vec(
-                                    &ClientMessage::BreakBlock(looking_at_pos),
+                                    ClientMessage::BreakBlock(looking_at_pos),
                                     config::standard(),
                                 )
                                 .unwrap();
@@ -499,7 +499,7 @@ fn player_handle_voxel_raycast(
                                     .edit_voxel(&placing_at_pos, BlockType::Stone);
 
                                 let message = bincode::serde::encode_to_vec(
-                                    &ClientMessage::PlaceBlock(placing_at_pos, BlockType::Stone),
+                                    ClientMessage::PlaceBlock(placing_at_pos, BlockType::Stone),
                                     config::standard(),
                                 )
                                 .unwrap();

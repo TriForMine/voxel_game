@@ -21,15 +21,15 @@ lazy_static! {
     // when SIZE 16, BIT_SIZE is 4
     // by shifting 16 << 4 we get 1
     // we with this get indexes from the collapsed array
-    pub static ref BIT_SIZE: i32 = (SIZE as f32).log2() as i32;
-    pub static ref BIT_SIZE_HEIGHT: i32 = (HEIGHT as f32).log2() as i32;
+    pub static ref BIT_SIZE: i32 = (CHUNK_SIZE as f32).log2() as i32;
+    pub static ref BIT_SIZE_HEIGHT: i32 = (CHUNK_HEIGHT as f32).log2() as i32;
 }
 
-pub const SIZE: i32 = 16;
-pub const HEIGHT: i32 = 256;
+pub const CHUNK_SIZE: i32 = 16;
+pub const CHUNK_HEIGHT: i32 = 256;
 
 pub type CompressedChunk = Vec<u8>;
-pub type ChunkData = [Block; (SIZE * SIZE * HEIGHT) as usize];
+pub type ChunkData = [Block; (CHUNK_SIZE * CHUNK_SIZE * CHUNK_HEIGHT) as usize];
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Chunk {
@@ -38,13 +38,13 @@ pub struct Chunk {
     pub pos: IVec3,
 
     #[serde(skip)]
-    neighbors: [Weak<RwLock<Chunk>>; 4],
+    pub neighbors: [Weak<RwLock<Chunk>>; 4],
 }
 
 impl Default for Chunk {
     fn default() -> Chunk {
         Chunk {
-            voxels: [Block::new_empty(); (SIZE * SIZE * HEIGHT) as usize],
+            voxels: [Block::new_empty(); (CHUNK_SIZE * CHUNK_SIZE * CHUNK_HEIGHT) as usize],
             pos: IVec3::default(),
             neighbors: [Weak::new(), Weak::new(), Weak::new(), Weak::new()],
         }
@@ -53,7 +53,7 @@ impl Default for Chunk {
 
 impl Chunk {
     pub fn from_compressed(bytes: &CompressedChunk) -> Self {
-        let decompressed = decompress(&bytes, None).unwrap();
+        let decompressed = decompress(bytes, None).unwrap();
 
         bincode::serde::decode_from_slice(&decompressed, config::standard())
             .unwrap()
@@ -71,16 +71,17 @@ impl Chunk {
     }
 
     pub fn get_index(coordinate: &IVec3) -> usize {
-        (coordinate.z * SIZE * HEIGHT + coordinate.y * SIZE + coordinate.x) as usize
+        (coordinate.z * CHUNK_SIZE * CHUNK_HEIGHT + coordinate.y * CHUNK_SIZE + coordinate.x)
+            as usize
     }
 
     pub fn is_in_chunk(coordinate: &IVec3) -> bool {
         coordinate.y >= 0
-            && coordinate.y < HEIGHT
+            && coordinate.y < CHUNK_HEIGHT
             && coordinate.x >= 0
-            && coordinate.x < SIZE
+            && coordinate.x < CHUNK_SIZE
             && coordinate.z >= 0
-            && coordinate.z < SIZE
+            && coordinate.z < CHUNK_SIZE
     }
 
     pub fn get_voxel(&self, coordinate: IVec3) -> Option<Block> {
@@ -90,25 +91,25 @@ impl Chunk {
             // Left
             self.neighbors[0].upgrade().map(|chunk| {
                 chunk.read().unwrap().voxels
-                    [Self::get_index(&(coordinate + IVec3::new(SIZE, 0, 0)))]
+                    [Self::get_index(&(coordinate + IVec3::new(CHUNK_SIZE, 0, 0)))]
             })
-        } else if coordinate.x >= SIZE {
+        } else if coordinate.x >= CHUNK_SIZE {
             // Right
             self.neighbors[1].upgrade().map(|chunk| {
                 chunk.read().unwrap().voxels
-                    [Self::get_index(&(coordinate - IVec3::new(SIZE, 0, 0)))]
+                    [Self::get_index(&(coordinate - IVec3::new(CHUNK_SIZE, 0, 0)))]
             })
         } else if coordinate.z < 0 {
             // Back
             self.neighbors[2].upgrade().map(|chunk| {
                 chunk.read().unwrap().voxels
-                    [Self::get_index(&(coordinate + IVec3::new(0, 0, SIZE)))]
+                    [Self::get_index(&(coordinate + IVec3::new(0, 0, CHUNK_SIZE)))]
             })
-        } else if coordinate.z >= SIZE {
+        } else if coordinate.z >= CHUNK_SIZE {
             // Front
             self.neighbors[3].upgrade().map(|chunk| {
                 chunk.read().unwrap().voxels
-                    [Self::get_index(&(coordinate - IVec3::new(0, 0, SIZE)))]
+                    [Self::get_index(&(coordinate - IVec3::new(0, 0, CHUNK_SIZE)))]
             })
         } else {
             None
@@ -133,13 +134,13 @@ impl Chunk {
     pub fn update_surrounding_voxels(&mut self, world: &World, local_coordinate: IVec3) {
         if local_coordinate.x == 0 {
             self.update_neighbor(world, 0);
-        } else if local_coordinate.x == SIZE - 1 {
+        } else if local_coordinate.x == CHUNK_SIZE - 1 {
             self.update_neighbor(world, 1);
         }
 
         if local_coordinate.z == 0 {
             self.update_neighbor(world, 2);
-        } else if local_coordinate.z == SIZE - 1 {
+        } else if local_coordinate.z == CHUNK_SIZE - 1 {
             self.update_neighbor(world, 3);
         }
     }

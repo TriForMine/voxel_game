@@ -1,6 +1,6 @@
 use crate::chunk::ServerChunkEntity;
 use crate::terrain::chunk_generation::TerrainGenTask;
-use crate::voxel::chunk::{ChunkEntity, SIZE};
+use crate::voxel::chunk::{ChunkEntity, CHUNK_SIZE};
 use crate::voxel::mesh_builder::create_chunk_mesh;
 use crate::voxel::texture::ResourcePack;
 use crate::voxel::world::GameWorld;
@@ -22,9 +22,9 @@ pub fn prepare_chunks(
         let mut entity_commands = commands.entity(chunk);
         entity_commands.insert((
             Transform::from_xyz(
-                (chunk_key.0.x * SIZE) as f32,
+                (chunk_key.0.x * CHUNK_SIZE) as f32,
                 0.0,
-                (chunk_key.0.z * SIZE) as f32,
+                (chunk_key.0.z * CHUNK_SIZE) as f32,
             ),
             Visibility::Hidden,
         ));
@@ -178,7 +178,8 @@ pub fn check_loading_world_ended(
         .unwrap()
         .pending_requested_chunks
         .read()
-        .unwrap().is_empty()
+        .unwrap()
+        .is_empty()
     {
         next_state.set(ClientState::Playing);
     }

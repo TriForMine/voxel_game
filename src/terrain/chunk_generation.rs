@@ -23,8 +23,10 @@ pub fn queue_chunk_generation(
             (
                 entity,
                 (TerrainGenTask(AsyncComputeTaskPool::get().spawn(async move {
-                    let mut chunk: Chunk = Chunk::default();
-                    chunk.pos = chunk_coord;
+                    let mut chunk: Chunk = Chunk {
+                        pos: chunk_coord,
+                        ..Default::default()
+                    };
                     TERRAIN_GENERATOR
                         .read()
                         .unwrap()
@@ -88,7 +90,7 @@ pub fn process_chunk_generation(
                 if let Some(players_waiting_for_chunk) = players_waiting_for_chunk {
                     for client_id in players_waiting_for_chunk.iter() {
                         let message = bincode::serde::encode_to_vec(
-                            &ServerMessage::Chunk(chunk_entity.0, chunk.read().unwrap().compress()),
+                            ServerMessage::Chunk(chunk_entity.0, chunk.read().unwrap().compress()),
                             config::standard(),
                         )
                         .unwrap();
